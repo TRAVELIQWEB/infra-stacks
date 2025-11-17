@@ -21,9 +21,10 @@ if [[ "$ROLE" != "master" && "$ROLE" != "replica" ]]; then
   exit 1
 fi
 
+MASTER_IP=""
+
 if [[ "$ROLE" == "replica" ]]; then
-  MASTER_IP=$(ask "Enter master IP:")
-  MASTER_PORT=$(ask "Enter master Redis port:")
+  MASTER_IP=$(ask "Enter master IP (for all instances):")
 fi
 
 echo ""
@@ -34,7 +35,14 @@ for ((i=0; i<COUNT; i++)); do
   PORT=$((BASE_PORT + i))
 
   echo ""
-  info "➡ Instance $((i+1)) on port $PORT"
+  info "➡ Instance $((i+1)) of $COUNT on port $PORT"
+
+  if [[ "$ROLE" == "replica" ]]; then
+    # Each replica follows same port on master
+    MASTER_PORT="$PORT"
+  else
+    MASTER_PORT=""
+  fi
 
   export PORT ROLE MASTER_IP MASTER_PORT
 

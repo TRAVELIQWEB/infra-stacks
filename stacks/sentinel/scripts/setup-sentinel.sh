@@ -21,12 +21,13 @@ CONF_DIR="/opt/redis-sentinel"
 CONF_FILE="${CONF_DIR}/sentinel-${SENTINEL_PORT}.conf"
 safe_mkdir "$CONF_DIR"
 
-# Base template
+# Base template only defines port + dir
 env SENTINEL_PORT="$SENTINEL_PORT" \
   envsubst < "$TEMPLATE_DIR/sentinel.conf.tpl" > "$CONF_FILE"
 
 info ""
-info "🛰  Auto-detecting Redis clusters from /opt/redis-stack-* ..."
+info "🛰  Scanning Redis clusters under /opt/redis-stack-* ..."
+info ""
 
 for INSTANCE_DIR in /opt/redis-stack-*; do
   [[ ! -d "$INSTANCE_DIR" ]] && continue
@@ -40,20 +41,17 @@ for INSTANCE_DIR in /opt/redis-stack-*; do
   MASTER_IP=$(grep "^MASTER_IP=" "$ENV_FILE" | cut -d '=' -f2)
   MASTER_PORT=$(grep "^MASTER_PORT=" "$ENV_FILE" | cut -d '=' -f2)
 
-  info ""
-  info "➡ Processing redis-$PORT"
-
-  # If ROLE is master → use local IP
-  if [[ "$ROLE" == "master" || -z "$ROLE" ]]; then
+  # If this is a master instance
+  if [[ "$ROLE" == "master" ]]; then
     TARGET_IP=$(hostname -I | awk '{print $1}')
     TARGET_PORT="$PORT"
   else
-    # Replica
+    # If replica, use original master of this specific cluster
     TARGET_IP="$MASTER_IP"
     TARGET_PORT="$MASTER_PORT"
   fi
 
-  info "   → Master detected: ${TARGET_IP}:${TARGET_PORT}"
+  info "→ Adding cluster redis-$PORT  master=${TARGET_IP}:${TARGET_PORT}"
 
   cat >> "$CONF_FILE" <<EOF
 
@@ -66,11 +64,11 @@ done
 
 info "Generated sentinel config at: $CONF_FILE"
 
-info "Starting Sentinel container..."
-
 TMP_ENV="/tmp/sentinel-${SENTINEL_PORT}.env"
 echo "SENTINEL_PORT=$SENTINEL_PORT" > "$TMP_ENV"
 echo "CONF_FILE=$CONF_FILE" >> "$TMP_ENV"
+
+info "Starting Sentinel container..."
 
 docker compose \
   -f "$TEMPLATE_DIR/sentinel-docker-compose.yml" \
@@ -78,4 +76,4 @@ docker compose \
   up -d
 
 success "🚀 Sentinel started on port $SENTINEL_PORT"
-echo "✔ Sentinel is now monitoring all Redis clusters"
+echo "✔ Now monitoring all Redis clusters"
