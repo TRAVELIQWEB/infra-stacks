@@ -21,9 +21,6 @@ if [[ "$ROLE" != "master" && "$ROLE" != "replica" ]]; then
   exit 1
 fi
 
-MASTER_IP=""
-MASTER_PORT=""
-
 if [[ "$ROLE" == "replica" ]]; then
   MASTER_IP=$(ask "Enter master IP:")
   MASTER_PORT=$(ask "Enter master Redis port:")
@@ -37,9 +34,8 @@ for ((i=0; i<COUNT; i++)); do
   PORT=$((BASE_PORT + i))
 
   echo ""
-  info "➡ Instance $((i+1)) of $COUNT on port $PORT"
+  info "➡ Instance $((i+1)) on port $PORT"
 
-  # Export so setup-instance.sh does NOT ask again
   export PORT ROLE MASTER_IP MASTER_PORT
 
   bash "$BASE_DIR/stacks/redis/scripts/setup-instance.sh"

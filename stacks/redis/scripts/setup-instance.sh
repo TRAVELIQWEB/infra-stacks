@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-# Get absolute path of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 BASE_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
@@ -14,14 +13,14 @@ docker_checks
 info "Setting up a Redis Stack instance"
 
 ###############################################
-# 1. PORT (Skip if provided by multiple script)
+# 1. PORT (skip if passed by multiple script)
 ###############################################
 if [[ -z "$PORT" ]]; then
   PORT=$(ask "Enter Redis port to expose:")
 fi
 
 ###############################################
-# 2. ROLE (Skip if provided by multiple script)
+# 2. ROLE (skip if provided externally)
 ###############################################
 if [[ -z "$ROLE" ]]; then
   ROLE=$(ask "Is this instance master or replica? (master/replica):")
@@ -33,19 +32,15 @@ if [[ "$ROLE" != "master" && "$ROLE" != "replica" ]]; then
 fi
 
 ###############################################
-# 3. MASTER INFO (Skip if already exported)
+# 3. MASTER INFO for replicas
 ###############################################
 if [[ "$ROLE" == "replica" ]]; then
-  if [[ -z "$MASTER_IP" ]]; then
-    MASTER_IP=$(ask "Enter master IP:")
-  fi
-  if [[ -z "$MASTER_PORT" ]]; then
-    MASTER_PORT=$(ask "Enter master Redis port:")
-  fi
+  [[ -z "$MASTER_IP" ]] && MASTER_IP=$(ask "Enter master IP:")
+  [[ -z "$MASTER_PORT" ]] && MASTER_PORT=$(ask "Enter master Redis port:")
 fi
 
 ###############################################
-# 4. PASSWORD (Always ask for each instance)
+# 4. PASSWORD
 ###############################################
 PASS_INPUT=$(ask "Enter password for Redis $PORT (blank = auto-generate):")
 
@@ -92,10 +87,16 @@ ROLE=${ROLE}
 EOF
 
 ###############################################
-# 7. Generate redis.conf
+# 7. PUBLIC IP (needed for replica announce)
+###############################################
+PUBLIC_IP=$(curl -s ifconfig.me)
+export PUBLIC_IP
+
+###############################################
+# 8. Generate redis.conf
 ###############################################
 export HOST_PORT="$PORT"
-export REDIS_PASSWORD MASTER_IP MASTER_PORT ROLE
+export REDIS_PASSWORD MASTER_IP MASTER_PORT ROLE PUBLIC_IP
 
 envsubst < "$BASE_DIR/stacks/redis/templates/redis.conf.tpl" > "$CONF_FILE"
 
@@ -104,7 +105,7 @@ if [[ "$ROLE" == "replica" ]]; then
 fi
 
 ###############################################
-# 8. Start container
+# 9. Start container
 ###############################################
 info "Starting Redis Stack container on port $PORT..."
 

@@ -9,11 +9,9 @@ dbfilename dump-${HOST_PORT}.rdb
 requirepass ${REDIS_PASSWORD}
 masterauth ${REDIS_PASSWORD}
 
-# 🔥 AOF – strongest persistence
 appendonly yes
 appendfsync everysec
 
-# 🔥 RDB – periodic full snapshots
 save 900 1
 save 300 100
 save 60 10000
@@ -21,7 +19,7 @@ save 60 10000
 maxmemory-policy allkeys-lru
 
 ###############################################
-# 🔥 Replica Announce Fix (Critical for Sentinel)
+# 🔥 Replica announce fix (critical for sentinel)
 ###############################################
 {% if ROLE == "replica" %}
 slave-announce-ip ${PUBLIC_IP}
