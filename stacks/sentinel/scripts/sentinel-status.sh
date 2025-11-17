@@ -26,7 +26,10 @@ echo -e "              Redis Sentinel Status Dashboard         "
 echo -e "======================================================${RESET}"
 echo -e "Sentinel Port: ${YELLOW}$SENTINEL_PORT${RESET}\n"
 
-MASTERS=$(redis-cli -p "$SENTINEL_PORT" SENTINEL masters 2>/dev/null | grep name | awk '{print $2}')
+
+MASTERS=$(redis-cli -p "$SENTINEL_PORT" SENTINEL masters \
+  | awk '/"name"/ {getline; print $2}' | tr -d '"')
+
 
 if [[ -z "$MASTERS" ]]; then
   echo -e "${RED}No clusters detected by Sentinel.${RESET}"
