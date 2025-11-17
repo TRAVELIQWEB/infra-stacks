@@ -41,10 +41,13 @@ fi
 MASTER_IP=""
 MASTER_PORT=""
 
+
+
 if [[ "$ROLE" == "replica" ]]; then
   MASTER_IP=$(ask "Enter master IP:")
-  MASTER_PORT="$PORT"
+  MASTER_PORT=$(ask "Enter master Redis port (e.g., 7010):")
 fi
+
 
 INSTANCE_DIR="/opt/redis-stack-${PORT}"
 DATA_DIR="${INSTANCE_DIR}/data"
