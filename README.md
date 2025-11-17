@@ -27,13 +27,21 @@ infra/
 │   └── utils.sh
 │
 ├── stacks/
-│   └── redis/
+│   ├── redis/
+│   │   ├── templates/
+│   │   │   ├── redis.conf.tpl
+│   │   │   └── docker-compose.yml
+│   │   └── scripts/
+│   │       ├── setup-instance.sh
+│   │       └── setup-multiple.sh
+│   │
+│   └── sentinel/
 │       ├── templates/
-│       │   ├── redis.conf.tpl
-│       │   └── docker-compose.yml
+│       │   ├── sentinel.conf.tpl
+│       │   └── sentinel-docker-compose.yml
 │       └── scripts/
-│           ├── setup-instance.sh
-│           └── setup-multiple.sh
+│           ├── setup-sentinel.sh
+│           └── sentinel-status.sh
 │
 └── README.md
 ```
@@ -80,21 +88,18 @@ ssh -T git@github-infra
 git clone git@github-infra:TRAVELIQWEB/infra-stacks.git /opt/infra
 
 
-## Permissions
+## System Permissions
 
-Before running any installer:
+Run:
 
-```bash
+```
 sudo chown -R $USER:$USER /opt
+```
 
-#i.e
+Example:
+
+```
 sudo chown -R sardevops:sardevops /opt
-```
-
-This allows storing all Redis instances under:
-
-```
-/opt/redis-stack-<port>/
 ```
 
 ---
@@ -103,14 +108,12 @@ This allows storing all Redis instances under:
 
 Run once after cloning:
 
-```bash
+```
 chmod +x helpers/io.sh
 chmod +x helpers/docker.sh
 chmod +x helpers/utils.sh
 
-
-chmod +x /opt/infra/stacks/redis/scripts/sentinel-status.sh
-
+chmod +x stacks/sentinel/scripts/sentinel-status.sh
 ```
 
 ---
@@ -118,33 +121,37 @@ chmod +x /opt/infra/stacks/redis/scripts/sentinel-status.sh
 # 🔥 Redis Stack Deployment
 
 Redis Stack is deployed using fully automated scripts.
+
+
  ## for status
  /opt/infra/stacks/redis/scripts/sentinel-status.sh
+
 ---
+
 
 ## 1. Single Redis Stack Instance
 
 Set permissions:
 
-```bash
+```
 chmod +x stacks/redis/scripts/setup-instance.sh
 ```
 
 Run:
 
-```bash
+```
 bash stacks/redis/scripts/setup-instance.sh
 ```
 
-You will be asked:
+Prompts:
 
-- Redis port (e.g., 6380)
-- Master or Replica
-- Redis password
-- (If replica) Master IP
-- (If replica) Master Port
+- Redis port  
+- Master or Replica  
+- Redis password  
+- (Replica only) Master IP  
+- (Replica only) Master Port  
 
-It creates:
+Creates:
 
 ```
 /opt/redis-stack-<port>/
@@ -153,7 +160,7 @@ It creates:
     └── .env
 ```
 
-Starts container:
+Starts Docker container:
 
 ```
 redis-stack-<port>
@@ -161,35 +168,33 @@ redis-stack-<port>
 
 ---
 
-## 2. Multiple Redis Stack Instances (Auto setup)
+## 2. Multiple Redis Stack Instances
 
 Permissions:
 
-```bash
+```
 chmod +x stacks/redis/scripts/setup-multiple.sh
 ```
 
 Run:
 
-```bash
+```
 bash stacks/redis/scripts/setup-multiple.sh
 ```
 
-You will be asked:
+Prompts:
 
-- Number of instances (e.g., 6)
-- Starting port (e.g., 6380)
-- Master or Replica
-- (If replica) Master IP
-- (If replica) Master Port
+- Number of ports  
+- Starting port  
+- Master or Replica  
+- (If replica) Master IP + Port  
 
 Each instance has:
 
-- Independent config
-- Independent UI port (16380, 16381, etc.)
-- Separate Docker network
-- Independent data directory
-- Correct replica configuration
+- Its own config  
+- Own UI port (16380, 16381…)  
+- Own data directory  
+- Auto replica configuration  
 
 ---
 
@@ -201,6 +206,96 @@ chmod 644 stacks/redis/templates/redis.conf.tpl
 ```
 
 ---
+
+## Redis Script Features
+
+- Auto Docker install  
+- Auto docker-compose install  
+- Creates isolated instance folders  
+- Auto config generator  
+- Auto `.env` creator  
+- Auto replica setup  
+- Auto port allocation  
+- No sudo needed after setup  
+
+---
+
+# 🛡️ Redis Sentinel Deployment  
+(Auto-Discovery • Auto-Monitoring • Supports 50+ Redis Ports)
+
+Sentinel automatically detects all existing Redis Stack instances under:
+
+```
+/opt/redis-stack-*
+```
+
+No need to manually configure masters/replicas.
+
+---
+
+
+
+
+## 1. Install Sentinel
+
+Permissions:
+
+```
+chmod +x stacks/sentinel/scripts/setup-sentinel.sh
+```
+
+Run:
+
+```
+bash stacks/sentinel/scripts/setup-sentinel.sh
+```
+
+Prompts:
+
+- Sentinel port (default 26379)
+
+Generates config:
+
+```
+/opt/redis-sentinel/sentinel-<port>.conf
+```
+
+Starts container:
+
+```
+redis-sentinel-<port>
+```
+
+---
+
+
+
+## 2. Sentinel Status Dashboard
+
+```
+bash stacks/sentinel/scripts/sentinel-status.sh
+```
+
+Shows:
+
+- All master groups  
+- Replica list  
+- Status (UP / DOWN)  
+- Failover readiness  
+
+---
+
+## Multi-VPS Recommended Layout
+
+| VPS | Purpose |
+|-----|---------|
+| VPS1 | Redis Stack Masters |
+| VPS2 | Redis Stack Replicas |
+| VPS3 | Redis Stack Replicas |
+| VPS4 | Sentinel-only voter |
+
+---
+
 
 ## Script Capabilities
 
