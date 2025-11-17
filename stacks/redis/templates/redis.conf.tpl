@@ -1,4 +1,3 @@
-
 port 6379
 bind 0.0.0.0
 protected-mode yes
@@ -20,3 +19,11 @@ save 300 100
 save 60 10000
 
 maxmemory-policy allkeys-lru
+
+###############################################
+# 🔥 Replica Announce Fix (Critical for Sentinel)
+###############################################
+{% if ROLE == "replica" %}
+slave-announce-ip ${PUBLIC_IP}
+slave-announce-port ${HOST_PORT}
+{% endif %}

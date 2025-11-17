@@ -26,23 +26,7 @@ env SENTINEL_PORT="$SENTINEL_PORT" \
   envsubst < "$TEMPLATE_DIR/sentinel.conf.tpl" > "$CONF_FILE"
 
 info ""
-info "Choose configuration mode:"
-info " 1) Auto mode (same IP + same password for all)"
-info " 2) Manual mode (ask per instance)"
-MODE=$(ask "Select mode (1/2):")
-
-AUTO_IP=""
-AUTO_PASS=""
-
-if [[ "$MODE" == "1" ]]; then
-  echo ""
-  info "AUTO MODE selected"
-  AUTO_IP=$(ask "Enter master IP for ALL redis instances:")
-  AUTO_PASS=$(ask "Enter master password for ALL redis instances:")
-fi
-
-info ""
-info "Scanning Redis instances under /opt/redis-stack-* ..."
+info "🛰  Auto-detecting Redis clusters from /opt/redis-stack-* ..."
 
 for INSTANCE_DIR in /opt/redis-stack-*; do
   [[ ! -d "$INSTANCE_DIR" ]] && continue
@@ -57,30 +41,19 @@ for INSTANCE_DIR in /opt/redis-stack-*; do
   MASTER_PORT=$(grep "^MASTER_PORT=" "$ENV_FILE" | cut -d '=' -f2)
 
   info ""
-  info "➡ Configuring redis-$PORT"
+  info "➡ Processing redis-$PORT"
 
-  if [[ "$MODE" == "1" ]]; then
-    # AUTO MODE logic
-    MASTER_IP="$AUTO_IP"
-    MASTER_PORT="$PORT"
-    PASS="$AUTO_PASS"
-  else
-    # MANUAL MODE logic
-    MASTER_PORT=$(ask "  Enter master port for redis-$PORT (current: $MASTER_PORT):")
-    MASTER_IP=$(ask "  Enter master IP for redis-$PORT (current: $MASTER_IP):")
-    PASS=$(ask "  Enter master password for redis-$PORT:")
-  fi
-
-  # Master or replica logic
+  # If ROLE is master → use local IP
   if [[ "$ROLE" == "master" || -z "$ROLE" ]]; then
     TARGET_IP=$(hostname -I | awk '{print $1}')
     TARGET_PORT="$PORT"
   else
+    # Replica
     TARGET_IP="$MASTER_IP"
     TARGET_PORT="$MASTER_PORT"
   fi
 
-  info "  → Adding redis-${PORT} -> master ${TARGET_IP}:${TARGET_PORT}"
+  info "   → Master detected: ${TARGET_IP}:${TARGET_PORT}"
 
   cat >> "$CONF_FILE" <<EOF
 
@@ -104,5 +77,5 @@ docker compose \
   --env-file "$TMP_ENV" \
   up -d
 
-success "Sentinel started on port $SENTINEL_PORT"
-echo "✔ Sentinel now monitors all Redis clusters"
+success "🚀 Sentinel started on port $SENTINEL_PORT"
+echo "✔ Sentinel is now monitoring all Redis clusters"
