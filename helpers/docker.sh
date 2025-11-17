@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
-source "$(dirname "$0")/io.sh"
+# Determine the directory where this file is located
+HELPER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+
+source "$HELPER_DIR/io.sh"
 
 check_docker() {
   if ! command -v docker &> /dev/null; then

@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 set -e
 
-BASE_DIR="$(dirname "$(dirname "$(dirname "$0")")")"
+# Get absolute path to this script's directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# Go up 3 levels: scripts -> redis -> stacks -> infra root
+BASE_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
 source "$BASE_DIR/helpers/io.sh"
 source "$BASE_DIR/helpers/docker.sh"
 source "$BASE_DIR/helpers/utils.sh"
+
 
 docker_checks
 

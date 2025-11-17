@@ -22,6 +22,6 @@ confirm() {
   read -rp "$(echo -e "${YELLOW}[?]${RESET} ${prompt} (y/n): ")" choice
   case "$choice" in
     y|Y ) return 0 ;;
-    * ) return 1 ;;
+        * ) return 1 ;;
   esac
 }

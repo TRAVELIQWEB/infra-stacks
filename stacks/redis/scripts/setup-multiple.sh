@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -e
 
-BASE_DIR="$(dirname "$(dirname "$(dirname "$0")")")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+BASE_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
 source "$BASE_DIR/helpers/io.sh"
 source "$BASE_DIR/helpers/docker.sh"
 source "$BASE_DIR/helpers/utils.sh"
+
 
 docker_checks
 
