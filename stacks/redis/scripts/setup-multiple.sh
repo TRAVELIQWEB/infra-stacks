@@ -26,18 +26,24 @@ MASTER_PORT=""
 
 if [[ "$ROLE" == "replica" ]]; then
   MASTER_IP=$(ask "Enter master IP:")
-  MASTER_PORT=$(ask "Enter master Redis port (e.g., 7010):")
+  MASTER_PORT=$(ask "Enter master Redis port:")
 fi
+
+echo ""
+info "🚀 Creating $COUNT Redis instances, starting from port $BASE_PORT"
+echo ""
 
 for ((i=0; i<COUNT; i++)); do
   PORT=$((BASE_PORT + i))
 
-  info "➡ Creating Redis instance on port $PORT"
+  echo ""
+  info "➡ Instance $((i+1)) of $COUNT on port $PORT"
 
-  # Export master info so instance script does NOT re-ask
-  export MASTER_IP MASTER_PORT ROLE PORT
+  # Export so setup-instance.sh does NOT ask again
+  export PORT ROLE MASTER_IP MASTER_PORT
 
   bash "$BASE_DIR/stacks/redis/scripts/setup-instance.sh"
 done
 
-success "All Redis instances created successfully!"
+echo ""
+success "🎉 All Redis instances created successfully!"

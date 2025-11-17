@@ -56,12 +56,39 @@ No external prerequisites needed.
 
 ---
 
+### github permission
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+ssh-keygen -t ed25519 -C "infra-stacks-deploy-redis1" -f ~/.ssh/infra-stacks
+
+cat ~/.ssh/infra-stacks.pub
+
+nano ~/.ssh/config
+
+Host github-infra
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/infra-stacks
+
+chmod 600 ~/.ssh/infra-stacks
+chmod 600 ~/.ssh/config
+chmod 700 ~/.ssh
+
+ssh -T git@github-infra
+
+
+git clone git@github-infra:TRAVELIQWEB/infra-stacks.git /opt/infra
+
+
 ## Permissions
 
 Before running any installer:
 
 ```bash
 sudo chown -R $USER:$USER /opt
+
+#i.e
+sudo chown -R sardevops:sardevops /opt
 ```
 
 This allows storing all Redis instances under:

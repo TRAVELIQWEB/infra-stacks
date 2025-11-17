@@ -1,72 +1,82 @@
 #!/usr/bin/env bash
 set -e
 
-# Get absolute path to this script's directory
+# Get absolute path of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-# Go up 3 levels: scripts -> redis -> stacks -> infra root
 BASE_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 source "$BASE_DIR/helpers/io.sh"
 source "$BASE_DIR/helpers/docker.sh"
 source "$BASE_DIR/helpers/utils.sh"
 
-
 docker_checks
 
 info "Setting up a Redis Stack instance"
 
-# Ask required inputs
-PORT=$(ask "Enter Redis port to expose (e.g., 6380):")
-ROLE=$(ask "Is this instance master or replica? (master/replica):")
+###############################################
+# 1. PORT (Skip if provided by multiple script)
+###############################################
+if [[ -z "$PORT" ]]; then
+  PORT=$(ask "Enter Redis port to expose:")
+fi
+
+###############################################
+# 2. ROLE (Skip if provided by multiple script)
+###############################################
+if [[ -z "$ROLE" ]]; then
+  ROLE=$(ask "Is this instance master or replica? (master/replica):")
+fi
 
 if [[ "$ROLE" != "master" && "$ROLE" != "replica" ]]; then
-  error "Invalid role! Choose 'master' or 'replica'"
+  error "Invalid role! Choose master/replica"
   exit 1
 fi
 
-# Check if already exists
+###############################################
+# 3. MASTER INFO (Skip if already exported)
+###############################################
+if [[ "$ROLE" == "replica" ]]; then
+  if [[ -z "$MASTER_IP" ]]; then
+    MASTER_IP=$(ask "Enter master IP:")
+  fi
+  if [[ -z "$MASTER_PORT" ]]; then
+    MASTER_PORT=$(ask "Enter master Redis port:")
+  fi
+fi
+
+###############################################
+# 4. PASSWORD (Always ask for each instance)
+###############################################
+PASS_INPUT=$(ask "Enter password for Redis $PORT (blank = auto-generate):")
+
+if [[ -z "$PASS_INPUT" ]]; then
+  REDIS_PASSWORD=$(generate_password)
+  info "Generated password for $PORT: $REDIS_PASSWORD"
+else
+  REDIS_PASSWORD="$PASS_INPUT"
+fi
+
+###############################################
+# 5. Directory setup
+###############################################
+INSTANCE_DIR="/opt/redis-stack-${PORT}"
+DATA_DIR="${INSTANCE_DIR}/data"
+CONF_DIR="${INSTANCE_DIR}/conf"
+ENV_FILE="${INSTANCE_DIR}/.env"
+CONF_FILE="${CONF_DIR}/redis-${PORT}.conf"
+
 if docker ps -a --format '{{.Names}}' | grep -q "^redis-stack-${PORT}$"; then
   error "Redis instance redis-stack-${PORT} already exists!"
   exit 1
 fi
 
-
-PASS_INPUT=$(ask "Enter Redis password (leave empty for auto-generate):")
-if [[ -z "$PASS_INPUT" ]]; then
-  REDIS_PASSWORD=$(generate_password)
-  info "Generated password: $REDIS_PASSWORD"
-else
-  REDIS_PASSWORD="$PASS_INPUT"
-fi
-
-# Extra safety: if somehow password is still empty, force regenerate
-if [[ -z "$REDIS_PASSWORD" ]]; then
-  REDIS_PASSWORD=$(generate_password)
-  info "Using auto-generated password (safety fallback): $REDIS_PASSWORD"
-fi
-
-
-MASTER_IP=""
-MASTER_PORT=""
-
-
-
-if [[ "$ROLE" == "replica" ]]; then
-  MASTER_IP=$(ask "Enter master IP:")
-  MASTER_PORT=$(ask "Enter master Redis port (e.g., 7010):")
-fi
-
-
-INSTANCE_DIR="/opt/redis-stack-${PORT}"
-DATA_DIR="${INSTANCE_DIR}/data"
-CONF_DIR="${INSTANCE_DIR}/conf"
-CONF_FILE="${CONF_DIR}/redis-${PORT}.conf"
-ENV_FILE="${INSTANCE_DIR}/.env"
-
 safe_mkdir "$INSTANCE_DIR"
 safe_mkdir "$DATA_DIR"
 safe_mkdir "$CONF_DIR"
 
+###############################################
+# 6. Environment file
+###############################################
 HOST_PORT_UI=$((PORT + 10000))
 
 cat > "$ENV_FILE" <<EOF
@@ -81,20 +91,31 @@ MASTER_PORT=${MASTER_PORT}
 ROLE=${ROLE}
 EOF
 
+###############################################
+# 7. Generate redis.conf
+###############################################
+export HOST_PORT="$PORT"
+export REDIS_PASSWORD MASTER_IP MASTER_PORT ROLE
+
 envsubst < "$BASE_DIR/stacks/redis/templates/redis.conf.tpl" > "$CONF_FILE"
 
 if [[ "$ROLE" == "replica" ]]; then
   echo "replicaof ${MASTER_IP} ${MASTER_PORT}" >> "$CONF_FILE"
 fi
 
-info "Starting Redis Stack container..."
+###############################################
+# 8. Start container
+###############################################
+info "Starting Redis Stack container on port $PORT..."
+
 docker compose \
   -f "$BASE_DIR/stacks/redis/templates/docker-compose.yml" \
   --env-file "$ENV_FILE" \
   -p "redis-stack-${PORT}" \
   up -d
 
-success "Redis Stack instance created!"
+success "Redis Stack $PORT created!"
+
 echo ""
 echo "🔹 Redis:       localhost:${PORT}"
 echo "🔹 Redis UI:    http://localhost:${HOST_PORT_UI}"
