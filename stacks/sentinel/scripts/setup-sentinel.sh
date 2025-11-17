@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bash
 set -e
 
@@ -13,68 +14,75 @@ source "$BASE_DIR/helpers/utils.sh"
 
 docker_checks
 
-info "Setting up multiple Redis Stack instances"
+info "Setting up Redis Sentinel"
 
-COUNT=$(ask "How many Redis instances? (e.g., 6):")
-START_PORT=$(ask "Enter starting port (e.g., 6380):")
-ROLE=$(ask "Are all instances master or replica? (master/replica):")
+SENTINEL_PORT=$(ask "Enter sentinel port (default 26379):")
+[[ -z "$SENTINEL_PORT" ]] && SENTINEL_PORT=26379
 
-MASTER_IP=""
-MASTER_PORT=""
+CONF_DIR="/opt/redis-sentinel"
+CONF_FILE="${CONF_DIR}/sentinel-${SENTINEL_PORT}.conf"
+safe_mkdir "$CONF_DIR"
 
-if [[ "$ROLE" == "replica" ]]; then
-  MASTER_IP=$(ask "Enter master IP:")
-fi
+# Base sentinel.conf from template
+env SENTINEL_PORT="$SENTINEL_PORT" \
+  envsubst < "$TEMPLATE_DIR/sentinel.conf.tpl" > "$CONF_FILE"
 
-info "🚀 Creating $COUNT Redis instances, starting from port $START_PORT"
-echo ""
+info "Scanning Redis instances under /opt/redis-stack-* ..."
 
-for ((i=0; i<COUNT; i++)); do
-  PORT=$((START_PORT + i))
-  UI_PORT=$((16380 + i))
+for INSTANCE_DIR in /opt/redis-stack-*; do
+  [[ ! -d "$INSTANCE_DIR" ]] && continue
+  ENV_FILE="$INSTANCE_DIR/.env"
 
-  info "➡ Instance $((i+1)) of $COUNT on port $PORT"
+  [[ ! -f "$ENV_FILE" ]] && continue
 
-  docker_checks
+  PORT=$(grep "^HOST_PORT=" "$ENV_FILE" | cut -d '=' -f2)
+  PASS=$(grep "^REDIS_PASSWORD=" "$ENV_FILE" | cut -d '=' -f2)
+  ROLE=$(grep "^ROLE=" "$ENV_FILE" | cut -d '=' -f2)
+  MASTER_IP=$(grep "^MASTER_IP=" "$ENV_FILE" | cut -d '=' -f2)
+  MASTER_PORT=$(grep "^MASTER_PORT=" "$ENV_FILE" | cut -d '=' -f2)
 
-  PASSWORD=$(ask "Enter password for Redis $PORT (blank = auto-generate):")
-
-  if [[ -z "$PASSWORD" ]]; then
-    PASSWORD=$(openssl rand -base64 18)
+  # Decide what to monitor:
+  # - For masters: use local IP + PORT
+  # - For replicas: use MASTER_IP + MASTER_PORT
+  if [[ "$ROLE" == "master" || -z "$ROLE" ]]; then
+    TARGET_NAME="redis-${PORT}"
+    TARGET_IP=$(hostname -I | awk '{print $1}')
+    TARGET_PORT="$PORT"
+  else
+    TARGET_NAME="redis-${MASTER_PORT}"
+    TARGET_IP="$MASTER_IP"
+    TARGET_PORT="$MASTER_PORT"
   fi
 
-  # Asking master port per instance (OPTION 2)
-  if [[ "$ROLE" == "replica" ]]; then
-    MASTER_PORT=$(ask "Enter master Redis port for instance $PORT:")
+  # Avoid duplicate "sentinel monitor" for same cluster name
+  if grep -q "sentinel monitor ${TARGET_NAME} " "$CONF_FILE"; then
+    info " → Skipping duplicate cluster ${TARGET_NAME} (${TARGET_IP}:${TARGET_PORT})"
+    continue
   fi
 
-  INSTANCE_DIR="/opt/redis-stack-$PORT"
-  safe_mkdir "$INSTANCE_DIR/conf"
-  safe_mkdir "$INSTANCE_DIR/data"
+  info " → Adding ${TARGET_NAME} (master ${TARGET_IP}:${TARGET_PORT})"
 
-  # Create .env
-  cat > "$INSTANCE_DIR/.env" <<EOF
-HOST_PORT=$PORT
-UI_PORT=$UI_PORT
-REDIS_PASSWORD=$PASSWORD
-ROLE=$ROLE
-MASTER_IP=$MASTER_IP
-MASTER_PORT=$MASTER_PORT
+  cat >> "$CONF_FILE" <<EOF
+
+# ---- CLUSTER ${TARGET_NAME} ----
+sentinel monitor ${TARGET_NAME} ${TARGET_IP} ${TARGET_PORT} 2
+sentinel auth-pass ${TARGET_NAME} ${PASS}
 EOF
 
-  info "Starting Redis Stack container on port $PORT..."
-  docker compose -f "$TEMPLATE_DIR/docker-compose.yml" --env-file "$INSTANCE_DIR/.env" up -d
-
-  success "Redis Stack $PORT created!"
-  echo ""
-  echo "🔹 Redis:       localhost:$PORT"
-  echo "🔹 Redis UI:    http://localhost:$UI_PORT"
-  echo "🔹 Role:        $ROLE"
-  echo "🔹 Password:    $PASSWORD"
-  if [[ "$ROLE" == "replica" ]]; then
-    echo "🔹 Master:      $MASTER_IP:$MASTER_PORT"
-  fi
-  echo ""
 done
 
-success "🎉 All Redis instances created successfully!"
+info "Generated sentinel config at: $CONF_FILE"
+
+info "Starting Sentinel container..."
+
+TMP_ENV="/tmp/sentinel-${SENTINEL_PORT}.env"
+echo "SENTINEL_PORT=$SENTINEL_PORT" > "$TMP_ENV"
+echo "CONF_FILE=$CONF_FILE" >> "$TMP_ENV"
+
+docker compose \
+  -f "$TEMPLATE_DIR/sentinel-docker-compose.yml" \
+  --env-file "$TMP_ENV" \
+  up -d
+
+success "Sentinel started on port $SENTINEL_PORT"
+echo "✔ Sentinel now monitors all Redis clusters"
