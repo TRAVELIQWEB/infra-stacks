@@ -26,10 +26,10 @@ echo -e "              Redis Sentinel Status Dashboard         "
 echo -e "======================================================${RESET}"
 echo -e "Sentinel Port: ${YELLOW}$SENTINEL_PORT${RESET}\n"
 
-
+# ---- FIXED MASTER NAME EXTRACTION ----
 MASTERS=$(redis-cli -p "$SENTINEL_PORT" SENTINEL masters \
-  | awk '/"name"/ {getline; print $2}' | tr -d '"')
-
+  | grep -A1 "^name$" \
+  | grep -v "^name$")
 
 if [[ -z "$MASTERS" ]]; then
   echo -e "${RED}No clusters detected by Sentinel.${RESET}"
@@ -41,13 +41,13 @@ for NAME in $MASTERS; do
 
   INFO=$(redis-cli -p "$SENTINEL_PORT" SENTINEL master "$NAME")
 
-  MASTER_IP=$(echo "$INFO" | grep -w ip | awk '{print $2}')
-  MASTER_PORT=$(echo "$INFO" | grep -w port | awk '{print $2}')
-  FLAGS=$(echo "$INFO" | grep -w flags | awk '{print $2}')
-  SLAVE_COUNT=$(echo "$INFO" | grep -w num-slaves | awk '{print $2}')
-  QUORUM=$(echo "$INFO" | grep -w quorum | awk '{print $2}')
-  FAIL_TIMEOUT=$(echo "$INFO" | grep -w failover-timeout | awk '{print $2}')
-  PARALLEL_SYNC=$(echo "$INFO" | grep -w parallel-syncs | awk '{print $2}')
+  MASTER_IP=$(echo "$INFO" | awk '/^ip$/ {getline; print}')
+  MASTER_PORT=$(echo "$INFO" | awk '/^port$/ {getline; print}')
+  FLAGS=$(echo "$INFO" | awk '/^flags$/ {getline; print}')
+  SLAVE_COUNT=$(echo "$INFO" | awk '/^num-slaves$/ {getline; print}')
+  QUORUM=$(echo "$INFO" | awk '/^quorum$/ {getline; print}')
+  FAIL_TIMEOUT=$(echo "$INFO" | awk '/^failover-timeout$/ {getline; print}')
+  PARALLEL_SYNC=$(echo "$INFO" | awk '/^parallel-syncs$/ {getline; print}')
 
   STATUS="${GREEN}UP${RESET}"
   [[ "$FLAGS" == *"s_down"* ]] && STATUS="${RED}DOWN${RESET}"
@@ -63,16 +63,15 @@ for NAME in $MASTERS; do
   echo -e "Parallel Syncs   : ${CYAN}${PARALLEL_SYNC}${RESET}\n"
 
   echo -e "${BLUE}Replica Nodes:${RESET}"
-
   redis-cli -p "$SENTINEL_PORT" SENTINEL slaves "$NAME" \
-    | grep -E "ip|port|flags" \
     | awk '
-      /ip/ { ip=$2 }
-      /port/ { port=$2 }
-      /flags/ {
+      /^ip$/ { getline; ip=$0 }
+      /^port$/ { getline; port=$0 }
+      /^flags$/ {
+        getline
         status="UP"
-        if ($2 ~ /s_down/) status="DOWN"
-        if ($2 ~ /disconnected/) status="DISCONNECTED"
+        if ($0 ~ /s_down/) status="DOWN"
+        if ($0 ~ /disconnected/) status="DISCONNECTED"
         printf "  - %s:%s (%s)\n", ip, port, status
       }
     '
