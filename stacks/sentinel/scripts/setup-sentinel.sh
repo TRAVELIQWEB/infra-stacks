@@ -63,9 +63,13 @@ info "Generated sentinel config at: $CONF_FILE"
 
 info "Starting Sentinel container..."
 
+TMP_ENV="/tmp/sentinel-${SENTINEL_PORT}.env"
+echo "SENTINEL_PORT=$SENTINEL_PORT" > "$TMP_ENV"
+echo "CONF_FILE=$CONF_FILE" >> "$TMP_ENV"
+
 docker compose \
   -f "$TEMPLATE_DIR/sentinel-docker-compose.yml" \
-  --env-file <(printf "SENTINEL_PORT=%s\nCONF_FILE=%s\n" "$SENTINEL_PORT" "$CONF_FILE") \
+  --env-file "$TMP_ENV" \
   up -d
 
 success "Sentinel started on port $SENTINEL_PORT"
