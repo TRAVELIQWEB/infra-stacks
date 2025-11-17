@@ -1,3 +1,4 @@
+
 port 6379
 bind 0.0.0.0
 protected-mode yes
@@ -9,8 +10,13 @@ dbfilename dump-${HOST_PORT}.rdb
 requirepass ${REDIS_PASSWORD}
 masterauth ${REDIS_PASSWORD}
 
+# 🔥 AOF – strongest persistence
 appendonly yes
 appendfsync everysec
-maxmemory-policy allkeys-lru
 
-# replicaof will be appended dynamically
+# 🔥 RDB – periodic full snapshots
+save 900 1
+save 300 100
+save 60 10000
+
+maxmemory-policy allkeys-lru
