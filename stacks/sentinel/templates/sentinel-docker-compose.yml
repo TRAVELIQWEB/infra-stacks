@@ -1,10 +1,13 @@
 services:
   redis-sentinel:
-    image: redis:7
-    container_name: redis-sentinel
-    ports:
-      - "${SENTINEL_PORT}:${SENTINEL_PORT}"
-    volumes:
-      - ${CONF_FILE}:/etc/redis/sentinel.conf
+    image: redis/redis-stack:latest     # you requested redis stack
+    container_name: "redis-sentinel-${SENTINEL_PORT}"
+    restart: unless-stopped
+
     command: ["redis-server", "/etc/redis/sentinel.conf", "--sentinel"]
-    restart: always
+
+    ports:
+      - "${SENTINEL_PORT}:26379"        # internal always 26379
+
+    volumes:
+      - "${CONF_FILE}:/etc/redis/sentinel.conf"   # must be quoted
