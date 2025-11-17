@@ -28,10 +28,11 @@ echo -e "Sentinel Port: ${YELLOW}$SENTINEL_PORT${RESET}\n"
 
 # ---- FIXED MASTER NAME EXTRACTION ----
 
-  MASTERS=$(redis-cli -p "$SENTINEL_PORT" SENTINEL masters \
+
+MASTERS=$(redis-cli -p "$SENTINEL_PORT" SENTINEL masters \
   | awk '
-      $2 == "\"name\"" { getline; print $2 }
-    ' | tr -d '"')
+      $1 == "name" { getline; print $1 }
+    ')
 
 
 if [[ -z "$MASTERS" ]]; then
