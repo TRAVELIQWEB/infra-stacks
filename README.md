@@ -107,6 +107,10 @@ Run once after cloning:
 chmod +x helpers/io.sh
 chmod +x helpers/docker.sh
 chmod +x helpers/utils.sh
+
+
+chmod +x /opt/infra/stacks/redis/scripts/sentinel-status.sh
+
 ```
 
 ---
@@ -114,7 +118,8 @@ chmod +x helpers/utils.sh
 # 🔥 Redis Stack Deployment
 
 Redis Stack is deployed using fully automated scripts.
-
+ ## for status
+ /opt/infra/stacks/redis/scripts/sentinel-status.sh
 ---
 
 ## 1. Single Redis Stack Instance

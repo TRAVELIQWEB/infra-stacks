@@ -1,0 +1,10 @@
+services:
+  redis-sentinel:
+    image: redis:7
+    container_name: redis-sentinel
+    ports:
+      - "${SENTINEL_PORT}:${SENTINEL_PORT}"
+    volumes:
+      - ${CONF_FILE}:/etc/redis/sentinel.conf
+    command: ["redis-server", "/etc/redis/sentinel.conf", "--sentinel"]
+    restart: always
