@@ -2,7 +2,11 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-BASE_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+STACK_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+BASE_DIR="$(cd "$STACK_DIR/../.." && pwd)"
+
+# Correct template directory for sentinel
+TEMPLATE_DIR="$STACK_DIR/templates"
 
 source "$BASE_DIR/helpers/io.sh"
 source "$BASE_DIR/helpers/docker.sh"
@@ -19,41 +23,38 @@ CONF_DIR="/opt/redis-sentinel"
 CONF_FILE="${CONF_DIR}/sentinel-${SENTINEL_PORT}.conf"
 safe_mkdir "$CONF_DIR"
 
-# Start with base template (common for all)
-env SENTINEL_PORT=$SENTINEL_PORT envsubst \
-  < "$BASE_DIR/stacks/redis/templates/sentinel.conf.tpl" \
+# Base part of sentinel.conf
+env SENTINEL_PORT="$SENTINEL_PORT" \
+  envsubst < "$TEMPLATE_DIR/sentinel.conf.tpl" \
   > "$CONF_FILE"
 
 info "Scanning Redis instances under /opt/redis-stack-* ..."
 
 for INSTANCE_DIR in /opt/redis-stack-*; do
   [[ ! -d "$INSTANCE_DIR" ]] && continue
-
   ENV_FILE="$INSTANCE_DIR/.env"
+
   if [[ ! -f "$ENV_FILE" ]]; then
     warn "Skipping $INSTANCE_DIR (no .env file)"
     continue
   fi
 
-  # Extract instance information
   PORT=$(grep "^HOST_PORT=" "$ENV_FILE" | cut -d '=' -f2)
   PASS=$(grep "^REDIS_PASSWORD=" "$ENV_FILE" | cut -d '=' -f2)
   ROLE=$(grep "^ROLE=" "$ENV_FILE" | cut -d '=' -f2)
   MASTER_IP=$(grep "^MASTER_IP=" "$ENV_FILE" | cut -d '=' -f2)
   MASTER_PORT=$(grep "^MASTER_PORT=" "$ENV_FILE" | cut -d '=' -f2)
 
-  # Resolve master for this instance
   if [[ "$ROLE" == "master" ]]; then
     TARGET_IP=$(hostname -I | awk '{print $1}')
-    TARGET_PORT=$PORT
+    TARGET_PORT="$PORT"
   else
-    TARGET_IP=$MASTER_IP
-    TARGET_PORT=$MASTER_PORT
+    TARGET_IP="$MASTER_IP"
+    TARGET_PORT="$MASTER_PORT"
   fi
 
-  info " → Adding cluster redis-${PORT} (master: ${TARGET_IP}:${TARGET_PORT})"
+  info " → Adding redis-${PORT} (master ${TARGET_IP}:${TARGET_PORT})"
 
-  # Append sentinel monitor config
   cat >> "$CONF_FILE" <<EOF
 
 # ---- CLUSTER $PORT ----
@@ -68,9 +69,9 @@ info "Generated sentinel config at: $CONF_FILE"
 info "Starting Sentinel container..."
 
 docker compose \
-  -f "$BASE_DIR/stacks/redis/templates/sentinel-docker-compose.yml" \
-  --env-file <(echo "SENTINEL_PORT=$SENTINEL_PORT") \
+  -f "$TEMPLATE_DIR/sentinel-docker-compose.yml" \
+  --env-file <(echo "SENTINEL_PORT=$SENTINEL_PORT; CONF_FILE=$CONF_FILE") \
   up -d
 
 success "Sentinel started on port $SENTINEL_PORT"
-echo "✔ Sentinel is now monitoring all Redis clusters"
+echo "✔ Sentinel now monitors all Redis clusters"
