@@ -27,9 +27,12 @@ echo -e "======================================================${RESET}"
 echo -e "Sentinel Port: ${YELLOW}$SENTINEL_PORT${RESET}\n"
 
 # ---- FIXED MASTER NAME EXTRACTION ----
-MASTERS=$(redis-cli -p "$SENTINEL_PORT" SENTINEL masters \
-  | grep -A1 "^name$" \
-  | grep -v "^name$")
+
+  MASTERS=$(redis-cli -p "$SENTINEL_PORT" SENTINEL masters \
+  | awk '
+      $2 == "\"name\"" { getline; print $2 }
+    ' | tr -d '"')
+
 
 if [[ -z "$MASTERS" ]]; then
   echo -e "${RED}No clusters detected by Sentinel.${RESET}"
