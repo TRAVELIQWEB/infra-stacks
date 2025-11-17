@@ -30,6 +30,7 @@ if docker ps -a --format '{{.Names}}' | grep -q "^redis-stack-${PORT}$"; then
   exit 1
 fi
 
+
 PASS_INPUT=$(ask "Enter Redis password (leave empty for auto-generate):")
 if [[ -z "$PASS_INPUT" ]]; then
   REDIS_PASSWORD=$(generate_password)
@@ -37,6 +38,13 @@ if [[ -z "$PASS_INPUT" ]]; then
 else
   REDIS_PASSWORD="$PASS_INPUT"
 fi
+
+# Extra safety: if somehow password is still empty, force regenerate
+if [[ -z "$REDIS_PASSWORD" ]]; then
+  REDIS_PASSWORD=$(generate_password)
+  info "Using auto-generated password (safety fallback): $REDIS_PASSWORD"
+fi
+
 
 MASTER_IP=""
 MASTER_PORT=""
