@@ -44,7 +44,14 @@ CONF_DIR="/opt/redis-sentinel"
 CONF_FILE="${CONF_DIR}/sentinel-${SENTINEL_PORT}.conf"
 
 safe_mkdir "$CONF_DIR"
-echo "" > "$CONF_FILE"
+
+# Create file as root
+sudo touch "$CONF_FILE"
+
+# Correct ownership so THIS script can write to the file
+sudo chown sardevops:sardevops "$CONF_FILE"
+sudo chmod 644 "$CONF_FILE"
+
 
 
 ###############################################
