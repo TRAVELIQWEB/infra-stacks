@@ -124,7 +124,7 @@ Redis Stack is deployed using fully automated scripts.
 
 
  ## for status
- /opt/infra/stacks/redis/scripts/sentinel-status.sh
+bash stacks/redis/scripts/redis-status.sh
 
 ---
 
@@ -151,14 +151,6 @@ Prompts:
 - (Replica only) Master IP  
 - (Replica only) Master Port  
 
-Creates:
-
-```
-/opt/redis-stack-<port>/
-    ├── conf/
-    ├── data/
-    └── .env
-```
 
 Starts Docker container:
 
@@ -328,3 +320,18 @@ Shows:
 For help deploying Redis Stack across multiple servers, contact the project owner.
 
 ---
+###### deletre all
+docker ps -a --format '{{.Names}}' | grep 'redis-stack' | xargs -r docker rm -f
+docker ps -a --format '{{.Names}}' | grep 'redis-sentinel' | xargs -r docker rm -f
+
+sudo rm -rf /opt/redis-stack-638*
+sudo rm -rf /opt/redis-sentinel
+
+sudo rm -rf /opt/redis-stack-*
+sudo rm -rf /opt/redis-sentinel-*
+
+docker network ls | grep 'redis-stack' | awk '{print $1}' | xargs -r docker network rm
+
+docker network ls | grep 'sentinel' | awk '{print $1}' | xargs -r docker network rm
+
+docker ps -a
