@@ -261,6 +261,21 @@ redis-sentinel-<port>
 ---
 
 
+## 1. Install Sentinel monitor only
+
+Permissions:
+
+```
+chmod +x stacks/sentinel/scripts/setup-sentinel-only.sh
+```
+
+Run:
+
+```
+bash stacks/sentinel/scripts/setup-sentinel-only.sh
+```
+
+
 
 ## 2. Sentinel Status Dashboard
 

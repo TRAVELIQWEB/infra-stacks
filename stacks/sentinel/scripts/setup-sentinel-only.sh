@@ -68,7 +68,13 @@ success "✔ Generated Sentinel config: $CONF_FILE"
 
 
 ###############################################
-# 6) Start sentinel container
+# 6) EXPORT variables so docker-compose can use them
+###############################################
+export SENTINEL_PORT CONF_FILE
+
+
+###############################################
+# 7) Start sentinel container
 ###############################################
 docker compose \
   -f "$BASE_DIR/stacks/sentinel/templates/sentinel-docker-compose.yml" \
