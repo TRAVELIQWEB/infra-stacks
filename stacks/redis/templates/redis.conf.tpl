@@ -24,9 +24,6 @@ maxmemory-policy allkeys-lru
 #slave-announce-ip ${PUBLIC_IP}
 #slave-announce-port ${HOST_PORT}
 
-# Use NetBird private IP instead of public IP
-replica-announce-ip ${NETBIRD_IP}
-replica-announce-port ${HOST_PORT}
-
-announce-ip ${NETBIRD_IP}
-announce-port ${HOST_PORT}
+# NOTE:
+# Replica settings (replicaof <ip> <port>) are added automatically
+# by setup-instance.sh when role=replica.

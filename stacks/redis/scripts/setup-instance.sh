@@ -90,17 +90,18 @@ EOF
 ###############################################
 # 7. PUBLIC IP (needed for replica announce)
 ###############################################
-#PUBLIC_IP=$(curl -s ifconfig.me)
-#export PUBLIC_IP
-
-NETBIRD_IP=$(hostname -I | awk '{print $1}')
-export NETBIRD_IP
+# PUBLIC_IP=$(curl -s ifconfig.me)
+# export PUBLIC_IP
 
 ###############################################
 # 8. Generate redis.conf
 ###############################################
+# export HOST_PORT="$PORT"
+# export REDIS_PASSWORD MASTER_IP MASTER_PORT ROLE PUBLIC_IP
+
 export HOST_PORT="$PORT"
-export REDIS_PASSWORD MASTER_IP MASTER_PORT ROLE PUBLIC_IP
+export REDIS_PASSWORD MASTER_IP MASTER_PORT ROLE
+
 
 envsubst < "$BASE_DIR/stacks/redis/templates/redis.conf.tpl" > "$CONF_FILE"
 
