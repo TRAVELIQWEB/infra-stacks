@@ -290,6 +290,8 @@ Shows:
 - Status (UP / DOWN)  
 - Failover readiness  
 
+### to make priority  manullly
+redis-cli -a "Salman@1004820" -p PORT CONFIG SET replica-priority 0
 ---
 
 ## Multi-VPS Recommended Layout
