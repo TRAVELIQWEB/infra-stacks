@@ -26,4 +26,4 @@ maxmemory-policy allkeys-lru
 
 # NOTE:
 # Replica settings (replicaof <ip> <port>) are added automatically
-# by setup-instance.sh when role=replica.
+# by setup-instance.sh when role=replica. 
