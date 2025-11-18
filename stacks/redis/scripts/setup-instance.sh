@@ -88,10 +88,19 @@ ROLE=${ROLE}
 EOF
 
 ###############################################
-# 7. PUBLIC IP (needed for replica announce)
+# 7. PUBLIC IP (NetBird Private IP)
 ###############################################
-# PUBLIC_IP=$(curl -s ifconfig.me)
-# export PUBLIC_IP
+if [[ -z "$PUBLIC_IP" ]]; then
+  # Get first NetBird IP (10.50.x.x)
+  PUBLIC_IP=$(hostname -I | tr ' ' '\n' | grep '^10\.50\.' | head -n1)
+fi
+
+if [[ -z "$PUBLIC_IP" ]]; then
+  error "❌ Could not detect NetBird IP (10.50.x.x). Set PUBLIC_IP manually."
+  exit 1
+fi
+
+export PUBLIC_IP
 
 ###############################################
 # 8. Generate redis.conf
@@ -100,7 +109,7 @@ EOF
 # export REDIS_PASSWORD MASTER_IP MASTER_PORT ROLE PUBLIC_IP
 
 export HOST_PORT="$PORT"
-export REDIS_PASSWORD MASTER_IP MASTER_PORT ROLE
+export REDIS_PASSWORD MASTER_IP MASTER_PORT ROLE PUBLIC_IP
 
 
 envsubst < "$BASE_DIR/stacks/redis/templates/redis.conf.tpl" > "$CONF_FILE"

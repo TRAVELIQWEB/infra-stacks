@@ -31,6 +31,19 @@ echo ""
 info "🚀 Creating $COUNT Redis instances, starting from port $BASE_PORT"
 echo ""
 
+###############################################
+# Detect NetBird Private IP (10.50.x.x)
+###############################################
+PUBLIC_IP=$(hostname -I | tr ' ' '\n' | grep '^10\.50\.' | head -n1)
+
+if [[ -z "$PUBLIC_IP" ]]; then
+  error "❌ Could not detect NetBird IP (10.50.x.x)."
+  exit 1
+fi
+
+export PUBLIC_IP
+
+
 for ((i=0; i<COUNT; i++)); do
   PORT=$((BASE_PORT + i))
 
@@ -44,7 +57,8 @@ for ((i=0; i<COUNT; i++)); do
     MASTER_PORT=""
   fi
 
-  export PORT ROLE MASTER_IP MASTER_PORT
+  export PORT ROLE MASTER_IP MASTER_PORT PUBLIC_IP
+
 
   bash "$BASE_DIR/stacks/redis/scripts/setup-instance.sh"
 done

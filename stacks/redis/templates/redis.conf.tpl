@@ -18,12 +18,23 @@ save 60 10000
 
 maxmemory-policy allkeys-lru
 
-###############################################
-# Replica announce fix (NO CONDITION HERE)
-###############################################
-#slave-announce-ip ${PUBLIC_IP}
-#slave-announce-port ${HOST_PORT}
 
-# NOTE:
-# Replica settings (replicaof <ip> <port>) are added automatically
-# by setup-instance.sh when role=replica. 
+###############################################
+# Replica announce — FIXED for NetBird + Docker
+###############################################
+# Always announce the HOST port (6380, 6381, etc.)
+# Always announce the NetBird private IP (10.50.x.x)
+
+replica-announce-ip ${PUBLIC_IP}
+replica-announce-port ${HOST_PORT}
+
+# Backward compatibility (Redis still accepts)
+slave-announce-ip ${PUBLIC_IP}
+slave-announce-port ${HOST_PORT}
+
+
+###############################################
+# Replica settings (added automatically)
+###############################################
+# setup-instance.sh will append:
+# replicaof <master_ip> <master_port>

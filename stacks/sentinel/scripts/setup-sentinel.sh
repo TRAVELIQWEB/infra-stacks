@@ -34,10 +34,15 @@ info ""
 info "🛰  Scanning Redis clusters under /opt/redis-stack-* ..."
 info ""
 
-# -------------------------------
-# DETECT LOCAL MACHINE IP
-# -------------------------------
-LOCAL_IP=$(hostname -I | awk '{print $1}')
+###############################################
+# Detect NetBird Private IP (10.50.x.x)
+###############################################
+LOCAL_IP=$(hostname -I | tr ' ' '\n' | grep '^10\.50\.' | head -n1)
+
+if [[ -z "$LOCAL_IP" ]]; then
+  error "❌ Could not detect NetBird IP (10.50.x.x)."
+  exit 1
+fi
 
 # -------------------------------
 # SCAN REDIS INSTANCES
@@ -54,14 +59,24 @@ for INSTANCE_DIR in /opt/redis-stack-*; do
   MASTER_IP=$(grep MASTER_IP= "$ENV_FILE" | cut -d'=' -f2)
   MASTER_PORT=$(grep MASTER_PORT= "$ENV_FILE" | cut -d'=' -f2)
 
-  # -------------------------------
-  # Always monitor MASTER of the cluster
-  # -------------------------------
+  ###############################################
+  # Ensure MASTER_IP is also NetBird private IP
+  ###############################################
+  if [[ "$ROLE" == "replica" ]]; then
+    if [[ "$MASTER_IP" != 10.50.* ]]; then
+      # Fetch NetBird IP from master node
+      MASTER_IP=$(ssh root@"$MASTER_IP" "hostname -I | tr ' ' '\n' | grep '^10\.50\.' | head -n1")
+    fi
+  fi
+
+  ###############################################
+  # Determine TARGET master for monitoring
+  ###############################################
   if [[ "$ROLE" == "master" ]]; then
-      TARGET_IP="$LOCAL_IP"
+      TARGET_IP="$LOCAL_IP"       # master on this VPS
       TARGET_PORT="$PORT"
   else
-      TARGET_IP="$MASTER_IP"
+      TARGET_IP="$MASTER_IP"      # master on remote VPS (NetBird)
       TARGET_PORT="$MASTER_PORT"
   fi
 
