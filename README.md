@@ -124,7 +124,7 @@ Redis Stack is deployed using fully automated scripts.
 
 
  ## for status
-bash stacks/redis/scripts/redis-status.sh
+  bash stacks/redis/scripts/redis-status.sh
 
 ---
 
