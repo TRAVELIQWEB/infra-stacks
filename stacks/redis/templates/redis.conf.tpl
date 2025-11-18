@@ -19,9 +19,7 @@ save 60 10000
 maxmemory-policy allkeys-lru
 
 ###############################################
-# 🔥 Replica announce fix (critical for sentinel)
+# Replica announce fix (NO CONDITION HERE)
 ###############################################
-{% if ROLE == "replica" %}
 slave-announce-ip ${PUBLIC_IP}
 slave-announce-port ${HOST_PORT}
-{% endif %}
