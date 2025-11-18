@@ -21,5 +21,12 @@ maxmemory-policy allkeys-lru
 ###############################################
 # Replica announce fix (NO CONDITION HERE)
 ###############################################
-slave-announce-ip ${PUBLIC_IP}
-slave-announce-port ${HOST_PORT}
+#slave-announce-ip ${PUBLIC_IP}
+#slave-announce-port ${HOST_PORT}
+
+# Use NetBird private IP instead of public IP
+replica-announce-ip ${NETBIRD_IP}
+replica-announce-port ${HOST_PORT}
+
+announce-ip ${NETBIRD_IP}
+announce-port ${HOST_PORT}

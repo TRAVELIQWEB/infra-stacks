@@ -90,8 +90,11 @@ EOF
 ###############################################
 # 7. PUBLIC IP (needed for replica announce)
 ###############################################
-PUBLIC_IP=$(curl -s ifconfig.me)
-export PUBLIC_IP
+#PUBLIC_IP=$(curl -s ifconfig.me)
+#export PUBLIC_IP
+
+NETBIRD_IP=$(hostname -I | awk '{print $1}')
+export NETBIRD_IP
 
 ###############################################
 # 8. Generate redis.conf
