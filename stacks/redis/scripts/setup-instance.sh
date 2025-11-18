@@ -105,9 +105,15 @@ export REDIS_PASSWORD MASTER_IP MASTER_PORT ROLE
 
 envsubst < "$BASE_DIR/stacks/redis/templates/redis.conf.tpl" > "$CONF_FILE"
 
+# if [[ "$ROLE" == "replica" ]]; then
+#   echo "replicaof ${MASTER_IP} ${MASTER_PORT}" >> "$CONF_FILE"
+# fi
+
 if [[ "$ROLE" == "replica" ]]; then
+  echo "" >> "$CONF_FILE"
   echo "replicaof ${MASTER_IP} ${MASTER_PORT}" >> "$CONF_FILE"
 fi
+
 
 ###############################################
 # 9. Start container
