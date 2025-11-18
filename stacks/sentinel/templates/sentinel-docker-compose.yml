@@ -10,4 +10,5 @@ services:
       - "${SENTINEL_PORT}:26379"
 
     volumes:
-      - "${CONF_FILE}:/etc/sentinel/sentinel.conf"
+      - "${CONF_FILE}:/etc/redis/sentinel.conf"
+      - "/opt/sentinel-data:/tmp"
