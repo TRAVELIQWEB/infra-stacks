@@ -1,0 +1,19 @@
+services:
+  mongo:
+    image: ${MONGO_IMAGE}
+    container_name: ${CONTAINER_NAME}
+    restart: unless-stopped
+
+    ports:
+      - "${MONGO_PORT}:27017"
+
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+
+    volumes:
+      - "${DB_PATH}:/data/db"
+      - "${CONFIG_FILE}:/etc/mongo/mongod.conf"
+      - "${KEYFILE_PATH}:/etc/mongo/keyfile"
+
+    command: ["mongod", "--config", "/etc/mongo/mongod.conf"]

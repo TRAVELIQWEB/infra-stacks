@@ -292,6 +292,10 @@ Shows:
 
 ### to make priority  manullly
 redis-cli -a "Salman@1004820" -p PORT CONFIG SET replica-priority 0
+nano /opt/redis-stack-6380/conf/redis-6380.conf
+
+Add this line:
+ replica-priority 0
 ---
 
 ## Multi-VPS Recommended Layout
