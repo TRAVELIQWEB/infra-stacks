@@ -3,20 +3,17 @@
 A fully automated infrastructure deployment toolkit for:
 
 - **Redis Stack (Master / Replica / Multi-port)**
-- **Redis Sentinel (Auto-Discovery / Auto-Monitoring)**
-- **MongoDB 8 (Standalone / Replica Set / Multi-port)**
-- **Automatic Docker Installation**
-- **Automatic Configuration Generation**
-- **Per-Instance Isolated Directories**
-- **One-Command Setup on Any Server**
+- Automatic Docker installation
+- Automatic configuration generation
+- Per-instance isolated directories
+- One-command setup on any server
 
 Designed for scalable deployments across **50+ VPS**, supporting:
 
-- Multiple Redis Stack instances per server  
-- Multiple MongoDB instances per server  
-- Master/Replica/Replica-Set architectures  
-- Sentinel-based failover  
-- Zero-manual-configuration automation  
+- Multiple Redis Stack instances per server
+- Master/Replica clusters
+- Future Sentinel auto-failover
+- Fully automated scripts requiring no manual Docker installation
 
 ---
 
@@ -57,68 +54,51 @@ infra/
 │
 └── README.md
 ```
-
----
-# 🧰 Prerequisites
-
-No prerequisites required.  
-The system **auto-installs**:
-
-- Docker Engine  
-- Docker Compose v2  
-- containerd  
-- buildx plugin  
-- docker-cli plugins  
-- Adds user to docker group  
-- Enables Docker daemon  
-
 ---
 
+## Prerequisites
 
-# 🔑 GitHub SSH Setup
+No external prerequisites needed.
 
-```
+### ✔ Auto-installs if missing:
+
+- Docker Engine
+- Docker Compose v2
+- containerd
+- docker-buildx
+- docker-model plugin
+- Adds user to docker group
+- Enables Docker service
+
+---
+
+### github permission
 mkdir -p ~/.ssh
+
 chmod 700 ~/.ssh
 
-ssh-keygen -t ed25519 -C "infra-stacks-deploy" -f ~/.ssh/infra-stacks
+ssh-keygen -t ed25519 -C "infra-stacks-deploy-redis1" -f ~/.ssh/infra-stacks
+
 cat ~/.ssh/infra-stacks.pub
-```
 
-Configure SSH:
-
-```
 nano ~/.ssh/config
 
 Host github-infra
     HostName github.com
     User git
+    <!-- Port 443 -->
     IdentityFile ~/.ssh/infra-stacks
-```
 
-Secure permissions:
-
-```
 chmod 600 ~/.ssh/infra-stacks
 chmod 600 ~/.ssh/config
 chmod 700 ~/.ssh
-```
 
-Test:
-
-```
 ssh -T git@github-infra
-```
 
-Clone repo:
 
-```
-git clone git@github-infra:TRAVELIQWEB/infra-stacks.git /opt/infra
-```
+## System Permissions
 
----
-
-# 👤 Permissions
+Run:
 
 ```
 sudo chown -R $USER:$USER /opt
@@ -129,36 +109,45 @@ Example:
 ```
 sudo chown -R sardevops:sardevops /opt
 ```
-
+ git clone git@github-infra:TRAVELIQWEB/infra-stacks.git /opt/infra
 ---
 
-# ⚙️ Helper Script Permissions
+## Setup Helper Script Permissions
+
+Run once after cloning:
 
 ```
 chmod +x helpers/io.sh
 chmod +x helpers/docker.sh
 chmod +x helpers/utils.sh
+
+chmod +x stacks/sentinel/scripts/sentinel-status.sh
 ```
 
 ---
-
----
-
 
 # 🔥 Redis Stack Deployment
 
-## ✔ Redis Status
+Redis Stack is deployed using fully automated scripts.
 
-```
-bash stacks/redis/scripts/redis-status.sh
-```
+
+ ## for status
+  bash stacks/redis/scripts/redis-status.sh
 
 ---
 
-## 1️⃣ Single Redis Stack Instance
+
+## 1. Single Redis Stack Instance
+
+Set permissions:
 
 ```
 chmod +x stacks/redis/scripts/setup-instance.sh
+```
+
+Run:
+
+```
 bash stacks/redis/scripts/setup-instance.sh
 ```
 
@@ -166,54 +155,137 @@ Prompts:
 
 - Redis port  
 - Master or Replica  
-- Password  
-- (Replica) Master IP + Port  
+- Redis password  
+- (Replica only) Master IP  
+- (Replica only) Master Port  
+
+
+Starts Docker container:
+
+```
+redis-stack-<port>
+```
 
 ---
 
-## 2️⃣ Multiple Redis Stack Instances
+## 2. Multiple Redis Stack Instances
+
+Permissions:
 
 ```
 chmod +x stacks/redis/scripts/setup-multiple.sh
+```
+
+Run:
+
+```
 bash stacks/redis/scripts/setup-multiple.sh
 ```
 
 Prompts:
 
-- How many instances  
+- Number of ports  
 - Starting port  
-- Master/Replica  
-- (Replica) Master IP  
+- Master or Replica  
+- (If replica) Master IP + Port  
 
-Each instance gets:
+Each instance has:
 
-- Unique data directory  
-- Unique UI port (16380+)  
-- Auto-generated configuration  
-- Auto replica linking  
+- Its own config  
+- Own UI port (16380, 16381…)  
+- Own data directory  
+- Auto replica configuration  
 
 ---
 
-# 🛡 Redis Sentinel Deployment  
-(One sentinel per VPS)
+## Redis Template Permissions
 
-## 1️⃣ Install Sentinel
+```
+chmod 644 stacks/redis/templates/docker-compose.yml
+chmod 644 stacks/redis/templates/redis.conf.tpl
+```
+
+---
+
+## Redis Script Features
+
+- Auto Docker install  
+- Auto docker-compose install  
+- Creates isolated instance folders  
+- Auto config generator  
+- Auto `.env` creator  
+- Auto replica setup  
+- Auto port allocation  
+- No sudo needed after setup  
+
+---
+
+# 🛡️ Redis Sentinel Deployment  
+(Auto-Discovery • Auto-Monitoring • Supports 50+ Redis Ports)
+
+Sentinel automatically detects all existing Redis Stack instances under:
+
+```
+/opt/redis-stack-*
+```
+
+No need to manually configure masters/replicas.
+
+---
+
+
+
+
+## 1. Install Sentinel
+
+Permissions:
 
 ```
 chmod +x stacks/sentinel/scripts/setup-sentinel.sh
+```
+
+Run:
+
+```
 bash stacks/sentinel/scripts/setup-sentinel.sh
 ```
 
 Prompts:
 
-- Sentinel port (default: 26379)
+- Sentinel port (default 26379)
 
-Scans all Redis instances under `/opt/redis-stack-*`  
-Automatically configures monitors.
+Generates config:
+
+```
+/opt/redis-sentinel/sentinel-<port>.conf
+```
+
+Starts container:
+
+```
+redis-sentinel-<port>
+```
 
 ---
 
-## 2️⃣ Sentinel Status Dashboard
+
+## 1. Install Sentinel monitor only
+
+Permissions:
+
+```
+chmod +x stacks/sentinel/scripts/setup-sentinel-only.sh
+```
+
+Run:
+
+```
+bash stacks/sentinel/scripts/setup-sentinel-only.sh
+```
+
+
+
+## 2. Sentinel Status Dashboard
 
 ```
 bash stacks/sentinel/scripts/sentinel-status.sh
@@ -221,25 +293,19 @@ bash stacks/sentinel/scripts/sentinel-status.sh
 
 Shows:
 
-- Master nodes  
+- All master groups  
 - Replica list  
+- Status (UP / DOWN)  
 - Failover readiness  
-- Flags, epoch, quorum  
 
+### to make priority  manullly
+redis-cli -a "Salman@1004820" -p PORT CONFIG SET replica-priority 0
+nano /opt/redis-stack-6380/conf/redis-6380.conf
+
+Add this line:
+ replica-priority 0
 ---
 
-### Set replica priority manually
-
-```
-redis-cli -a "<PASS>" -p <PORT> CONFIG SET replica-priority 0
-```
-
-File level:
-
-```
-nano /opt/redis-stack-6380/conf/redis-6380.conf
-replica-priority 0
-```
 
 ---
 
@@ -300,33 +366,71 @@ Shows:
 
 ---
 
-# 📦 Recommended VPS Layout
+
+## Multi-VPS Recommended Layout
 
 | VPS | Purpose |
 |-----|---------|
-| VPS1 | Redis Masters + Mongo Primary |
-| VPS2 | Redis Replicas + Mongo Secondary |
-| VPS3 | Redis Replicas + Mongo Secondary |
+| VPS1 | Redis Stack Masters |
+| VPS2 | Redis Stack Replicas |
+| VPS3 | Redis Stack Replicas |
 | VPS4 | Sentinel-only voter |
 
 ---
 
-# 🧹 Full Cleanup (Redis + Sentinel)
 
-```
-docker ps -a --format '{{.Names}}' | grep 'redis-stack' | xargs -r docker rm -f
-docker ps -a --format '{{.Names}}' | grep 'redis-sentinel' | xargs -r docker rm -f
+## Script Capabilities
 
-sudo rm -rf /opt/redis-stack-*
-sudo rm -rf /opt/redis-sentinel*
-
-docker network ls | grep 'redis-stack' | awk '{print $1}' | xargs -r docker network rm
-docker network ls | grep 'sentinel' | awk '{print $1}' | xargs -r docker network rm
-docker ps -a
-```
+### ✔ Auto-installs Docker  
+### ✔ Creates per-instance directories  
+### ✔ Generates redis.conf  
+### ✔ Creates per-instance `.env`  
+### ✔ Maps ports  
+### ✔ Starts Redis Stack via docker compose  
+### ✔ Appends replicaof for replicas  
+### ✔ Prevents duplicate instances  
+### ✔ No sudo required  
 
 ---
 
-# 📞 Support
+## Coming Next
 
-For deployment help or custom infrastructure automation, contact the project owner.
+- Redis Sentinel automation
+- Sentinel-only voter node
+- MongoDB instance setup
+- MongoDB replica sets
+- Cleanup tools  
+  - remove-instance.sh  
+  - remove-multiple.sh  
+
+---
+
+## Support
+
+For help deploying Redis Stack across multiple servers, contact the project owner.
+
+---
+###### deletre all redis
+docker ps -a --format '{{.Names}}' | grep 'redis-stack' | xargs -r docker rm -f
+docker ps -a --format '{{.Names}}' | grep 'redis-sentinel' | xargs -r docker rm -f
+
+sudo rm -rf /opt/redis-stack-638*
+sudo rm -rf /opt/redis-sentinel
+
+sudo rm -rf /opt/redis-stack-*
+sudo rm -rf /opt/redis-sentinel-*
+
+docker network ls | grep 'redis-stack' | awk '{print $1}' | xargs -r docker network rm
+
+docker network ls | grep 'sentinel' | awk '{print $1}' | xargs -r docker network rm
+
+docker ps -a
+
+
+###### deletre mongo
+docker rm -f mongo-27017
+sudo rm -rf /opt/mongo-27017
+docker network ls | grep "mongo-27017" | awk '{print $1}' | xargs -r docker network rm
+
+##### (Only do this if you want to reset replica-set authentication)
+sudo rm -rf /opt/mongo-keyfile
