@@ -30,8 +30,10 @@ for c in $containers; do
         continue
     fi
 
-    USER=$(grep '^MONGO_ROOT_USER=' "$ENV_FILE" | cut -d '=' -f2)
+
+    USER=$(grep '^MONGO_ROOT_USERNAME=' "$ENV_FILE" | cut -d '=' -f2)
     PASS=$(grep '^MONGO_ROOT_PASSWORD=' "$ENV_FILE" | cut -d '=' -f2)
+
 
     # Check UP/DOWN
     if ! docker exec $c mongosh --quiet \
