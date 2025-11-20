@@ -332,12 +332,12 @@ Supports:
 
 # 🟢 **ARCHITECTURE**
 
-| VPS      | Purpose                       |
-| -------- | ----------------------------- |
-| **VPS1** | Master (PRIMARY)              |
-| **VPS2** | Replica                       |
-| **VPS3** | Replica                       |
-| **VPS4** | (Optional) Additional Replica |
+| VPS      | Purpose                                |
+| -------- | -------------------------------------- |
+| **VPS1** | Master (PRIMARY)                       |
+| **VPS2** | Replica                                |
+| **VPS3** | Replica                                |
+| **VPS4** | **Backup-Only Hidden Replica** (no RW) |
 
 All nodes communicate through **NetBird private IPs (10.50.x.x)**.
 
@@ -377,18 +377,31 @@ You should see:
 ```
 Replica set 'walletreplica' initiated with primary 10.50.0.38:27019
 ```
+---
+# ⚙️ **Recommended Linux Kernel Optimizations**
 
-## Disable Transparent Huge Pages (THP)
+These improve MongoDB stability and performance:
+
+### Disable Transparent Huge Pages (THP)
+
+```
 echo never | sudo tee /sys/kernel/mm/transparent_hugepage/enabled
 echo never | sudo tee /sys/kernel/mm/transparent_hugepage/defrag
+```
 
-## Make it permanent
+Make it permanent:
+
+```
 echo "transparent_hugepage=never" | sudo tee -a /etc/default/grub
 sudo update-grub
+```
 
-## Reduce swap usage
+### Reduce swap usage
+
+```
 echo "vm.swappiness=1" | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
+```
 
 
 ### ✔ KeyFile generated:
@@ -486,10 +499,29 @@ Run:
 ```
 rs.add("10.50.0.227:27019")
 rs.add("10.50.0.102:27019")
-rs.add("10.50.0.103:27019")
+```
+---
+# 🟦 6️⃣ **Add VPS4 as Backup-Only Hidden Node (No Reads/Writes)**
+
+👉 **This is required ONLY for backup node**
+👉 Keeps the node OUT of elections
+👉 MongoDB will never route reads/writes to this node
+
+Run from PRIMARY:
+
+```
+rs.add({
+  host: "10.50.0.250:27019",
+  priority: 0,
+  hidden: true,
+  votes: 0
+})
 ```
 
-Then check:
+
+# 🔍 Verify
+
+Run on PRIMARY:
 
 ```
 rs.status()
@@ -498,10 +530,10 @@ rs.status()
 Expected final:
 
 ```
-PRIMARY      → 10.50.0.38:27019
-SECONDARY    → VPS2
-SECONDARY    → VPS3
-SECONDARY    → VPS4
+PRIMARY        → VPS1
+SECONDARY      → VPS2
+SECONDARY      → VPS3
+HIDDEN BACKUP  → VPS4 (priority 0, votes 0)
 ```
 
 If replica shows:
