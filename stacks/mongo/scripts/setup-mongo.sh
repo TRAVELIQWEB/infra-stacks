@@ -51,10 +51,6 @@ fi
 
 ###############################################
 # 5. KeyFile for internal authentication
-#    Must be the SAME on ALL replica members.
-#    On first server it will be created.
-#    Copy /opt/mongo-keyfile/mongo-keyfile to
-#    all other servers before running this script.
 ###############################################
 KEY_DIR="/opt/mongo-keyfile/${REPLICA_SET}"
 KEY_FILE="${KEY_DIR}/mongo-keyfile"
@@ -62,14 +58,13 @@ KEY_FILE="${KEY_DIR}/mongo-keyfile"
 sudo mkdir -p "$KEY_DIR"
 
 if [[ ! -f "$KEY_FILE" ]]; then
-  info "No keyFile found at $KEY_FILE. Generating new keyFile (use this SAME file on all replica set members)."
+  info "No keyFile found at $KEY_FILE. Generating a new one."
   openssl rand -base64 756 | sudo tee "$KEY_FILE" >/dev/null
   sudo chmod 600 "$KEY_FILE"
 else
   info "Reusing existing keyFile at $KEY_FILE"
 fi
 
-# Make sure mongod (uid 999) can read it
 sudo chown 999:999 "$KEY_FILE" || true
 
 ###############################################
@@ -91,7 +86,7 @@ safe_mkdir "$DATA_DIR"
 safe_mkdir "$CONF_DIR"
 
 ###############################################
-# 7. Environment file for docker compose
+# 7. Environment file
 ###############################################
 cat > "$ENV_FILE" <<EOF
 CONTAINER_NAME=mongo-${MONGO_PORT}
@@ -107,7 +102,7 @@ KEYFILE_PATH=${KEY_FILE}
 EOF
 
 ###############################################
-# 8. Generate mongod.conf from template
+# 8. Generate config from template
 ###############################################
 export MONGO_PORT
 export MONGO_REPLICA_SET="${REPLICA_SET}"
@@ -115,7 +110,7 @@ export MONGO_REPLICA_SET="${REPLICA_SET}"
 envsubst < "$BASE_DIR/stacks/mongo/templates/mongod.conf.tpl" > "$CONF_FILE"
 
 ###############################################
-# 9. Start MongoDB container
+# 9. Start container
 ###############################################
 info "Starting MongoDB container on port $MONGO_PORT..."
 
@@ -131,30 +126,32 @@ CONTAINER_NAME="mongo-${MONGO_PORT}"
 # 10. Wait for MongoDB to be ready
 ###############################################
 info "Waiting for MongoDB to be ready..."
-until docker exec "$CONTAINER_NAME" mongosh --host localhost --port 27017 --quiet --eval "db.runCommand({ ping: 1 })" >/dev/null 2>&1; do
+until docker exec "$CONTAINER_NAME" mongosh --quiet --eval "db.runCommand({ ping: 1 })" >/dev/null 2>&1; do
   sleep 2
 done
 
 success "MongoDB on port $MONGO_PORT is up."
 
 ###############################################
-# 11. (Optional) Initiate replica set from master
+# 11. Initiate replica set (MASTER ONLY)
 ###############################################
 if [[ "$ROLE" == "master" ]]; then
-  # Try to use NetBird IP first (10.50.x.x), else first IP
+
   LOCAL_IP=$(hostname -I | tr ' ' '\n' | grep '^10\.50\.' | head -n1)
   [[ -z "$LOCAL_IP" ]] && LOCAL_IP=$(hostname -I | awk '{print $1}')
 
   if confirm "Initiate replica set '${REPLICA_SET}' from this node now?"; then
-    RS_OK=$(docker exec "$CONTAINER_NAME" mongosh --host localhost --port 27017 --quiet \
+
+    RS_OK=$(docker exec "$CONTAINER_NAME" mongosh --quiet \
       -u "$MONGO_ROOT_USERNAME" -p "$MONGO_ROOT_PASSWORD" --authenticationDatabase admin \
-      --eval "try { rs.status().ok } catch (e) { 0 }" 2>/dev/null || echo "0")
+      --eval "try { rs.status().ok } catch(e) { 0 }" 2>/dev/null || echo "0")
 
     if [[ "$RS_OK" == "1" ]]; then
       info "Replica set '${REPLICA_SET}' already initiated. Skipping."
     else
       info "Initiating replica set '${REPLICA_SET}' with primary ${LOCAL_IP}:${MONGO_PORT} ..."
-      docker exec "$CONTAINER_NAME" mongosh --host localhost --port 27017 --quiet \
+
+      docker exec "$CONTAINER_NAME" mongosh --quiet \
         -u "$MONGO_ROOT_USERNAME" -p "$MONGO_ROOT_PASSWORD" --authenticationDatabase admin \
         --eval "
           rs.initiate({
@@ -166,8 +163,9 @@ if [[ "$ROLE" == "master" ]]; then
         "
 
       success "Replica set '${REPLICA_SET}' initiated with primary ${LOCAL_IP}:${MONGO_PORT}"
+
       echo ""
-      echo "👉 To add replicas later, connect to this primary and run:"
+      echo "👉 To add replicas later, run:"
       echo "   rs.add('<SECONDARY_IP>:<PORT>')"
     fi
   fi
@@ -181,5 +179,5 @@ echo "🔹 Role:        $ROLE"
 echo "🔹 Replica set: $REPLICA_SET"
 echo "🔹 Root user:   $MONGO_ROOT_USERNAME"
 echo "🔹 Root pass:   $MONGO_ROOT_PASSWORD"
-echo "🔹 KeyFile:     $KEY_FILE (must be same on ALL members)"
+echo "🔹 KeyFile:     $KEY_FILE"
 echo ""
