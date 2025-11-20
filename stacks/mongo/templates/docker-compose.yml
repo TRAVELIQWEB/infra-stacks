@@ -13,7 +13,7 @@ services:
 
     volumes:
       - "${DB_PATH}:/data/db"
-      - "${CONFIG_FILE}:/etc/mongo/mongod.conf"
+      - "${CONFIG_FILE}:/etc/mongod.conf"   # ← FIXED
       - "${KEYFILE_PATH}:/etc/mongo/keyfile"
 
-    command: ["mongod", "--config", "/etc/mongo/mongod.conf"]
+    command: ["mongod", "--config", "/etc/mongod.conf"]   # ← FIXED
