@@ -73,6 +73,7 @@ No external prerequisites needed.
 ---
 
 ### github permission
+````
 mkdir -p ~/.ssh
 
 chmod 700 ~/.ssh
@@ -94,7 +95,7 @@ chmod 600 ~/.ssh/config
 chmod 700 ~/.ssh
 
 ssh -T git@github-infra
-
+````
 
 ## System Permissions
 
