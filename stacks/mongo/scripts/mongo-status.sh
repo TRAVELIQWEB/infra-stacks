@@ -12,7 +12,6 @@ echo -e "${BLUE}======================================================"
 echo -e "                 MongoDB Replica Status"
 echo -e "======================================================${RESET}"
 
-# Find all running mongo containers
 containers=$(docker ps --format '{{.Names}}' | grep '^mongo-' || true)
 
 if [[ -z "$containers" ]]; then
@@ -22,19 +21,42 @@ fi
 
 for c in $containers; do
     PORT=$(echo $c | cut -d '-' -f2)
+    ENV_FILE="/opt/mongo-${PORT}/.env"
 
     echo -e "\n${YELLOW}---- Instance: $c  (Port: $PORT) ----${RESET}"
 
-    # Check container health
-    if ! docker exec $c mongosh --port $PORT --eval "db.adminCommand({ ping: 1 })" >/dev/null 2>&1; then
+    if [[ ! -f "$ENV_FILE" ]]; then
+        echo -e "${RED}Missing .env file: $ENV_FILE${RESET}"
+        continue
+    fi
+
+    USER=$(grep '^MONGO_ROOT_USER=' "$ENV_FILE" | cut -d '=' -f2)
+    PASS=$(grep '^MONGO_ROOT_PASSWORD=' "$ENV_FILE" | cut -d '=' -f2)
+
+    # Check UP/DOWN
+    if ! docker exec $c mongosh --quiet \
+        --port $PORT \
+        -u "$USER" -p "$PASS" \
+        --authenticationDatabase admin \
+        --eval "db.adminCommand({ ping: 1 })" >/dev/null 2>&1; then
         echo -e "${RED}Status: DOWN${RESET}"
         continue
     fi
 
     echo -e "${GREEN}Status: UP${RESET}"
 
-    # Fetch replica set info
+    # Get replica set name
+    RS_NAME=$(docker exec $c mongosh --quiet --port $PORT \
+        -u "$USER" -p "$PASS" \
+        --authenticationDatabase admin \
+        --eval "rs.status().set" 2>/dev/null || echo "-")
+
+    echo -e "Replica Set: ${GREEN}$RS_NAME${RESET}"
+
+    # Get role
     ROLE=$(docker exec $c mongosh --quiet --port $PORT \
+        -u "$USER" -p "$PASS" \
+        --authenticationDatabase admin \
         --eval "rs.status().myState" 2>/dev/null || echo "0")
 
     case $ROLE in
@@ -43,14 +65,12 @@ for c in $containers; do
         *) ROLE_STR="UNKNOWN" ;;
     esac
 
-    RS_NAME=$(docker exec $c mongosh --quiet --port $PORT \
-        --eval "rs.status().set" 2>/dev/null || echo "-")
-
-    echo -e "Replica Set: ${GREEN}$RS_NAME${RESET}"
     echo -e "Role       : ${GREEN}$ROLE_STR${RESET}"
 
-    # Show hostname inside the cluster
+    # Hostname
     HOSTNAME=$(docker exec $c mongosh --quiet --port $PORT \
+        -u "$USER" -p "$PASS" \
+        --authenticationDatabase admin \
         --eval "db.serverStatus().host" 2>/dev/null || echo "-")
 
     echo -e "Host       : ${BLUE}$HOSTNAME${RESET}"
