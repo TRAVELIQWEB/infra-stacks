@@ -56,7 +56,7 @@ fi
 #    Copy /opt/mongo-keyfile/mongo-keyfile to
 #    all other servers before running this script.
 ###############################################
-KEY_DIR="/opt/mongo-keyfile"
+KEY_DIR="/opt/mongo-keyfile/${REPLICA_SET}"
 KEY_FILE="${KEY_DIR}/mongo-keyfile"
 
 sudo mkdir -p "$KEY_DIR"
