@@ -309,62 +309,245 @@ Add this line:
 
 ---
 
-# 🍃 MongoDB 8 Deployment  
-(Standalone / Replica Set / Multi-Instance)
-
-Mongo automation supports:
-
-- Multiple MongoDB instances per VPS  
-- Auto-created config  
-- Auto keyFile generation (internal auth)  
-- Auto replica set initiation  
-- Username/password creation  
-- `mongo:8` Docker image  
 
 ---
 
-## 1️⃣ Setup MongoDB Instance
+
+---
+
+# 🍃 MongoDB 8 Replica Set Setup (Multi-VPS, Multi-Port)
+
+A complete guide for deploying a MongoDB 8 replica set across **multiple VPS servers** using Docker + automation scripts.
+
+Supports:
+
+✔ Multi-VPS replica sets
+✔ Multi-port Mongo instances
+✔ Keyfile-based internal authentication
+✔ Auto configs, auto `.env`, auto directory structure
+✔ Mongo 8 (WiredTiger)
+
+---
+
+# 🟢 **ARCHITECTURE**
+
+| VPS      | Purpose                       |
+| -------- | ----------------------------- |
+| **VPS1** | Master (PRIMARY)              |
+| **VPS2** | Replica                       |
+| **VPS3** | Replica                       |
+| **VPS4** | (Optional) Additional Replica |
+
+All nodes communicate through **NetBird private IPs (10.50.x.x)**.
+
+---
+# ✅ 1️⃣ **Setup MASTER MongoDB Instance — VPS1**
+
+Run:
 
 ```
-chmod +x stacks/mongo/scripts/setup-mongo.sh
 bash stacks/mongo/scripts/setup-mongo.sh
 ```
 
-Prompts:
+Enter:
 
-- MongoDB port  
-- Master or Replica  
-- Replica set name  
-- Root username  
-- Root password (auto-generate supported)  
+```
+Port: 27019
+Role: master
+Replica Set: walletreplica
+Root Username: superuser
+Root Password: WalletMongo7861004820
+```
 
-Creates:
+When script asks:
 
-- `/opt/mongo-PORT/`  
-- `mongod.conf`  
-- `.env`  
-- Shared keyFile  
-- Docker Compose container  
+```
+Initiate replica set now? (y/n)
+```
 
-If role = master → optional **replica-set initiation**.
+Answer:
+
+```
+y
+```
+
+You should see:
+
+```
+Replica set 'walletreplica' initiated with primary 10.50.0.38:27019
+```
+
+### ✔ KeyFile generated:
+
+```
+/opt/mongo-keyfile/walletreplica/mongo-keyfile
+```
+
+This keyfile MUST be copied to all replica VPS servers.
 
 ---
 
-## ✔ MongoDB Status
+# ✅ 2️⃣ **Prepare VPS2, VPS3, VPS4 (Before running script)**
+
+On each REPLICA VPS run these commands FIRST:
+
+```
+sudo mkdir -p /opt/mongo-keyfile
+sudo chown -R sardevops:sardevops /opt/mongo-keyfile
+sudo chmod 755 /opt/mongo-keyfile
+```
+
+---
+
+
+# ✅ 3️⃣ **Copy KeyFile from MASTER → Replicas**
+
+Run on **VPS1 (Master)**:
+
+```
+sudo scp -r /opt/mongo-keyfile/walletreplica \
+  sardevops@<REPLICA_NETBIRD_IP>:/opt/mongo-keyfile/
+```
+
+Example:
+
+```
+sudo scp -r /opt/mongo-keyfile/walletreplica \
+  sardevops@10.50.0.227:/opt/mongo-keyfile/
+```
+
+Then on each replica VPS:
+
+```
+sudo chown -R 999:999 /opt/mongo-keyfile/walletreplica
+sudo chmod 600 /opt/mongo-keyfile/walletreplica/mongo-keyfile
+```
+
+✔ Makes keyfile readable to MongoDB container
+✔ MUST be done before running setup script
+
+---
+# ✅ 4️⃣ **Setup Replica VPS Instances (VPS2, VPS3, VPS4)**
+
+Run on each VPS:
+
+```
+bash stacks/mongo/scripts/setup-mongo.sh
+```
+
+Enter:
+
+```
+Port: 27019
+Role: replica
+Replica Set: walletreplica
+Root User: superuser
+Root Pass: WalletMongo7861004820
+```
+
+Important:
+
+* The script automatically loads the keyfile.
+* Replica nodes **do not** initiate RS.
+
+---
+
+
+
+# ✅ 5️⃣ **Add Replicas to the MASTER**
+
+SSH into **VPS1 (PRIMARY)**:
+
+```
+docker exec -it mongo-27019 mongosh \
+  -u superuser -p WalletMongo7861004820 \
+  --authenticationDatabase admin
+```
+
+Run:
+
+```
+rs.add("10.50.0.227:27019")
+rs.add("10.50.0.102:27019")
+rs.add("10.50.0.103:27019")
+```
+
+Then check:
+
+```
+rs.status()
+```
+
+Expected final:
+
+```
+PRIMARY      → 10.50.0.38:27019
+SECONDARY    → VPS2
+SECONDARY    → VPS3
+SECONDARY    → VPS4
+```
+
+If replica shows:
+
+```
+STARTUP
+STARTUP2
+RECOVERING
+```
+
+This is **normal**. It becomes SECONDARY after sync.
+
+---
+
+
+
+# 🟢 **Status Check Script**
+
+Run on any VPS:
 
 ```
 bash stacks/mongo/scripts/mongo-status.sh
 ```
 
-Shows:
+You will see:
 
-- Port  
-- Role  
-- ReplicaSet Name  
-- PRIMARY / SECONDARY  
-- Auth status  
+* Port
+* Role (master/replica)
+* Replica set name
+* PRIMARY / SECONDARY
+* Auth enabled
 
 ---
+
+# 🔥 **COMPLETE REPLICA SET WORKFLOW (SUMMARY)**
+
+1️⃣ Run setup on **MASTER**
+2️⃣ Copy keyfile to replicas
+3️⃣ Fix keyfile ownership on replicas
+4️⃣ Run setup script on replicas
+5️⃣ Add replicas from master
+6️⃣ Verify using `rs.status()`
+
+---
+
+# 🧹 **Cleanup Commands**
+
+### Delete Mongo Instance
+
+```
+docker rm -f mongo-27019
+sudo rm -rf /opt/mongo-27019
+docker network ls | grep "mongo-27019" | awk '{print $1}' | xargs -r docker network rm
+```
+
+To delete keyfile directory:
+
+```
+sudo rm -rf /opt/mongo-keyfile
+```
+
+---
+
 
 
 ## Multi-VPS Recommended Layout
@@ -393,22 +576,6 @@ Shows:
 
 ---
 
-## Coming Next
-
-- Redis Sentinel automation
-- Sentinel-only voter node
-- MongoDB instance setup
-- MongoDB replica sets
-- Cleanup tools  
-  - remove-instance.sh  
-  - remove-multiple.sh  
-
----
-
-## Support
-
-For help deploying Redis Stack across multiple servers, contact the project owner.
-
 ---
 ###### deletre all redis
 docker ps -a --format '{{.Names}}' | grep 'redis-stack' | xargs -r docker rm -f
@@ -425,12 +592,3 @@ docker network ls | grep 'redis-stack' | awk '{print $1}' | xargs -r docker netw
 docker network ls | grep 'sentinel' | awk '{print $1}' | xargs -r docker network rm
 
 docker ps -a
-
-
-###### deletre mongo
-docker rm -f mongo-27017
-sudo rm -rf /opt/mongo-27017
-docker network ls | grep "mongo-27017" | awk '{print $1}' | xargs -r docker network rm
-
-##### (Only do this if you want to reset replica-set authentication)
-sudo rm -rf /opt/mongo-keyfile
