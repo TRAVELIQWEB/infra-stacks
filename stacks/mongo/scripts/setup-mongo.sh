@@ -126,7 +126,7 @@ CONTAINER_NAME="mongo-${MONGO_PORT}"
 # 10. Wait for MongoDB to be ready
 ###############################################
 info "Waiting for MongoDB to be ready..."
-until docker exec "$CONTAINER_NAME" mongosh --quiet --eval "db.runCommand({ ping: 1 })" >/dev/null 2>&1; do
+until docker exec "$CONTAINER_NAME" mongosh --quiet --port $MONGO_PORT --eval "db.runCommand({ ping: 1 })" >/dev/null 2>&1; do
   sleep 2
 done
 
@@ -142,7 +142,7 @@ if [[ "$ROLE" == "master" ]]; then
 
   if confirm "Initiate replica set '${REPLICA_SET}' from this node now?"; then
 
-    RS_OK=$(docker exec "$CONTAINER_NAME" mongosh --quiet \
+    RS_OK=$(docker exec "$CONTAINER_NAME" mongosh --quiet --port $MONGO_PORT \
       -u "$MONGO_ROOT_USERNAME" -p "$MONGO_ROOT_PASSWORD" --authenticationDatabase admin \
       --eval "try { rs.status().ok } catch(e) { 0 }" 2>/dev/null || echo "0")
 
@@ -151,7 +151,7 @@ if [[ "$ROLE" == "master" ]]; then
     else
       info "Initiating replica set '${REPLICA_SET}' with primary ${LOCAL_IP}:${MONGO_PORT} ..."
 
-      docker exec "$CONTAINER_NAME" mongosh --quiet \
+      docker exec "$CONTAINER_NAME" mongosh --quiet --port $MONGO_PORT \
         -u "$MONGO_ROOT_USERNAME" -p "$MONGO_ROOT_PASSWORD" --authenticationDatabase admin \
         --eval "
           rs.initiate({
@@ -163,7 +163,6 @@ if [[ "$ROLE" == "master" ]]; then
         "
 
       success "Replica set '${REPLICA_SET}' initiated with primary ${LOCAL_IP}:${MONGO_PORT}"
-
       echo ""
       echo "👉 To add replicas later, run:"
       echo "   rs.add('<SECONDARY_IP>:<PORT>')"
