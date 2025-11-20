@@ -377,6 +377,19 @@ You should see:
 Replica set 'walletreplica' initiated with primary 10.50.0.38:27019
 ```
 
+## Disable Transparent Huge Pages (THP)
+echo never | sudo tee /sys/kernel/mm/transparent_hugepage/enabled
+echo never | sudo tee /sys/kernel/mm/transparent_hugepage/defrag
+
+## Make it permanent
+echo "transparent_hugepage=never" | sudo tee -a /etc/default/grub
+sudo update-grub
+
+## Reduce swap usage
+echo "vm.swappiness=1" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+
+
 ### ✔ KeyFile generated:
 
 ```
@@ -460,8 +473,11 @@ SSH into **VPS1 (PRIMARY)**:
 
 ```
 docker exec -it mongo-27019 mongosh \
-  -u superuser -p WalletMongo7861004820 \
+  --port 27019 \
+  -u superuser \
+  -p WalletMongo7861004820 \
   --authenticationDatabase admin
+
 ```
 
 Run:
@@ -506,6 +522,8 @@ This is **normal**. It becomes SECONDARY after sync.
 Run on any VPS:
 
 ```
+chmod +x stacks/mongo/scripts/mongo-status.sh
+
 bash stacks/mongo/scripts/mongo-status.sh
 ```
 
