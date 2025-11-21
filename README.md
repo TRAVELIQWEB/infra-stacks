@@ -1,11 +1,12 @@
 # infra-stacks  
-### Automated Redis, Sentinel & MongoDB Deployment Toolkit
+### Automated Redis, Sentinel, MongoDB Replica Sets & Mongo Backup Toolkit
 
 A fully automated infrastructure toolkit for deploying:
 
 - **Redis Stack (single or multi-port)**
 - **Redis Sentinel (auto-discovery + monitoring)**
 - **MongoDB 8 Replica Sets (multi-VPS, multi-port)**
+- **Mongo Backup System (daily + monthly + S3 encrypted backups)**
 
 All services run in **Docker**, auto-configured through scripts.  
 Designed for distributed deployments across **50+ VPS servers**.
@@ -24,7 +25,8 @@ infra/
 ├── stacks/
 │   ├── redis/             # Redis Stack deployment
 │   ├── sentinel/          # Redis Sentinel deployment
-│   └── mongo/             # Mongo Replica deployment
+│   ├── mongo/             # Mongo Replica deployment
+│   └── mongo-backup/      # Mongo Backup (S3 Sync + Encryption + Restore)
 │
 └── README.md
 ```
@@ -38,6 +40,7 @@ infra/
 | **Redis Stack** | 👉 [`stacks/redis/README.md`](stacks/redis/README.md) |
 | **Redis Sentinel** | 👉 [`stacks/sentinel/README.md`](stacks/sentinel/README.md) |
 | **Mongo Replica Set** | 👉 [`stacks/mongo/README.md`](stacks/mongo/README.md) |
+| **Mongo Backup System** | 👉 [`stacks/mongo-backup/README.md`](stacks/mongo-backup/README.md) |
 
 ---
 
@@ -48,7 +51,6 @@ mkdir -p ~/.ssh
 chmod 700 ~/.ssh
 
 ssh-keygen -t ed25519 -C "infra-stacks-deploy" -f ~/.ssh/infra-stacks
-
 cat ~/.ssh/infra-stacks.pub
 ```
 
@@ -63,18 +65,14 @@ Host github-infra
     IdentityFile ~/.ssh/infra-stacks
 ```
 
+Permissions:
+
 ```
 chmod 600 ~/.ssh/infra-stacks
 chmod 600 ~/.ssh/config
 ```
 
-Test:
-
-```
-ssh -T git@github-infra
-```
-
-Clone repo:
+Clone:
 
 ```
 sudo chown -R $USER:$USER /opt
@@ -93,46 +91,52 @@ chmod +x stacks/*/scripts/*.sh
 ---
 
 # 🐳 Docker & Compose Auto-Install  
-No need to install Docker manually — scripts automatically:
+No manual installation needed. Scripts handle:
 
-- Install Docker Engine  
-- Install Docker Compose v2  
-- Enable docker service  
-- Add user to docker group  
+- Docker Engine  
+- Docker Compose v2  
+- containerd  
+- docker group permissions  
+- docker service enable  
 
 ---
 
 # 🎯 Modules Overview
 
 ## 1️⃣ Redis Stack  
-- Single or multiple Redis instances  
-- Auto replica configuration  
-- UI port exposure  
-- Auto directory creation  
-- Status scripts  
-
-📄 **Docs:** `stacks/redis/README.md`
+- Single/multiple Redis instances  
+- Auto-generated configs  
+- Replica setup  
+- Status dashboard  
+📄 `stacks/redis/README.md`
 
 ---
 
 ## 2️⃣ Redis Sentinel  
-- Auto-detects all Redis Stack instances  
-- Auto monitors masters & replicas  
-- Failover readiness dashboard  
-- Sentinel-only voting node support  
-
-📄 **Docs:** `stacks/sentinel/README.md`
+- Auto-detect Redis instances  
+- Monitors all masters  
+- Failover-ready  
+- Sentinel-only voter support  
+📄 `stacks/sentinel/README.md`
 
 ---
 
-## 3️⃣ MongoDB 8 Replica Set  
+## 3️⃣ MongoDB Replica Set  
 - Multi-VPS deployment  
-- Master + replicas + hidden backup node  
+- Master + replicas  
+- Hidden backup-only node  
 - Auto keyfile generation  
-- Auto docker-compose  
-- Status checker  
+📄 `stacks/mongo/README.md`
 
-📄 **Docs:** `stacks/mongo/README.md`
+---
+
+## 4️⃣ Mongo Backup System (Daily + Monthly + S3)  
+- Runs on hidden replica (backup node)  
+- Daily & monthly encrypted backups  
+- Zata S3 compatible  
+- Automatic retention cleanup  
+- Full restore script included  
+📄 `stacks/mongo-backup/README.md`
 
 ---
 
@@ -143,7 +147,7 @@ No need to install Docker manually — scripts automatically:
 | VPS1 | Redis Masters / Mongo Primary |
 | VPS2 | Redis Replicas / Mongo Secondary |
 | VPS3 | Redis Replicas / Mongo Secondary |
-| VPS4 | Sentinel-only voter / Mongo Hidden Backup |
+| VPS4 | Sentinel-only voter / Mongo Hidden Backup (backup node) |
 
 ---
 
@@ -163,5 +167,4 @@ docker network ls | grep 'sentinel' | awk '{print $1}' | xargs -r docker network
 ---
 
 # 🎉 Done  
-Now check individual module READMEs for exact workflows.
-
+Refer to each module’s README for exact setup flows.
