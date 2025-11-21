@@ -205,10 +205,17 @@ mkdir -p "$BACKUP_DIR/tmp"
 echo "=== Mongo Backup Started: MODE=$MODE TIME=$TIMESTAMP ==="
 
 for PORT in $MONGO_PORTS; do
-  HOST="${!MONGO_HOST_${PORT}}"
-  USER="${!MONGO_USER_${PORT}}"
-  PASS="${!MONGO_PASS_${PORT}}"
-  AUTHDB="${!MONGO_AUTHDB_${PORT}}"
+
+    HOST_VAR="MONGO_HOST_${PORT}"
+    USER_VAR="MONGO_USER_${PORT}"
+    PASS_VAR="MONGO_PASS_${PORT}"
+    AUTHDB_VAR="MONGO_AUTHDB_${PORT}"
+
+    HOST="${!HOST_VAR}"
+    USER="${!USER_VAR}"
+    PASS="${!PASS_VAR}"
+    AUTHDB="${!AUTHDB_VAR}"
+
 
   DUMP_FILE="${BACKUP_DIR}/tmp/mongo-${PORT}-${MODE}-${TIMESTAMP}.archive.gz"
   ENC_FILE="${DUMP_FILE}.gpg"
