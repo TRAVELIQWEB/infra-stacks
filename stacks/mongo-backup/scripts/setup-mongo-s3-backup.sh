@@ -386,29 +386,46 @@ EOF
 chmod +x "$RESTORE_SCRIPT"
 
 ###############################################
-# 7) Setup cron jobs (per-port)
+# 7) Setup cron jobs (PER PORT — SAFE VERSION)
 ###############################################
 echo -e "${BLUE}Setting up cron jobs for port ${MONGO_PORT}...${RESET}"
 
 CRON_CMD="$RUN_SCRIPT"
 
-# Remove old entries for THIS port's script
-( crontab -l 2>/dev/null | grep -v "$CRON_CMD" || true ) > /tmp/current_cron.$$ || true
+# Ensure script exists before adding cron
+if [[ ! -f "$CRON_CMD" ]]; then
+  echo -e "${RED}ERROR: Backup script missing — cannot add cron job.${RESET}"
+  exit 1
+fi
 
-# Daily backup at 02:30
-echo "30 2 * * * $CRON_CMD daily >> /var/log/mongo-backup-${MONGO_PORT}-daily.log 2>&1" >> /tmp/current_cron.$$
+# Create a clean temporary cron file
+TEMP_CRON="/tmp/cron-${MONGO_PORT}-$$"
 
-# Monthly backup on 1st at 03:00
-echo "0 3 1 * * * $CRON_CMD monthly >> /var/log/mongo-backup-${MONGO_PORT}-monthly.log 2>&1" >> /tmp/current_cron.$$
+# Load existing crontab except old entries for this script
+crontab -l 2>/dev/null | grep -v "$CRON_CMD" > "$TEMP_CRON" || true
 
-crontab /tmp/current_cron.$$
-rm -f /tmp/current_cron.$$
+# Append NEW cron entries (daily & monthly)
+echo "30 2 * * * $CRON_CMD daily >> /var/log/mongo-backup-${MONGO_PORT}-daily.log 2>&1" >> "$TEMP_CRON"
+echo "0 3 1 * * $CRON_CMD monthly >> /var/log/mongo-backup-${MONGO_PORT}-monthly.log 2>&1" >> "$TEMP_CRON"
 
-echo -e "${GREEN}Cron jobs installed for port ${MONGO_PORT}.${RESET}"
-echo "Daily:   02:30  → $CRON_CMD daily"
-echo "Monthly: 03:00  → $CRON_CMD monthly"
+# Validate before applying
+if ! crontab "$TEMP_CRON"; then
+  echo -e "${RED}Cron installation failed! Showing generated file:${RESET}"
+  echo "-----------------------------------------------------"
+  sed -n '1,50p' "$TEMP_CRON"
+  echo "-----------------------------------------------------"
+  rm -f "$TEMP_CRON"
+  exit 1
+fi
+
+# Cleanup
+rm -f "$TEMP_CRON"
+
+echo -e "${GREEN}Cron jobs installed successfully for port ${MONGO_PORT}.${RESET}"
+echo "Daily:    02:30 → $CRON_CMD daily"
+echo "Monthly:  03:00 → $CRON_CMD monthly"
 echo ""
-echo "Manual test for this port:"
+echo "To test manually:"
 echo "  $CRON_CMD daily"
 echo "  $CRON_CMD monthly"
 echo ""
