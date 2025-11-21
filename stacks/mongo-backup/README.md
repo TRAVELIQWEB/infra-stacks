@@ -1,43 +1,74 @@
-# 🍃 Mongo Backup & Restore System  
-### Automated Daily + Monthly Encrypted Backups → Zata (S3 Compatible)
 
-This module provides:
 
-- Multi-port MongoDB backups  
-- Runs on hidden replica node (backup VPS)  
-- `mongodump --archive --gzip`  
-- Encrypted `.gpg` files  
-- Upload to Zata S3  
-- Daily & Monthly retention cleanup  
-- Full restore script (interactive)  
+
+
+---
+
+# 🍃 Mongo Backup & Restore System
+
+### Per-Port Automatic Encrypted Daily & Monthly Backups → Zata (S3 Compatible)
+
+This system **creates a completely isolated backup setup per MongoDB port**, each with:
+
+* Its own backup directory
+* Its own config file
+* Its own run script
+* Its own restore script
+* Its own bucket or folder
+* Its own retention policy
+
+Perfect for multi-project servers (wallet, fwms, rail, bus, etc.)
 
 ---
 
 # 🚀 Features
 
-| Feature | Supported |
-|--------|-----------|
-| Multi Mongo Port Backups | ✔ |
-| Zata S3 / S3 Compatible | ✔ |
-| Encryption (GPG symmetric) | ✔ |
-| Daily Backups | ✔ |
-| Monthly Backups | ✔ |
-| Retention Cleanup | ✔ |
-| Auto Cron Setup | ✔ |
-| Interactive Restore Script | ✔ |
+| Feature                                     | Supported |
+| ------------------------------------------- | --------- |
+| Multi Mongo Port Backups (isolated folders) | ✔         |
+| Different buckets for each port             | ✔         |
+| Different folder prefixes per project       | ✔         |
+| Zata S3 / S3 Compatible                     | ✔         |
+| Encryption (GPG symmetric)                  | ✔         |
+| Daily Backups                               | ✔         |
+| Monthly Backups                             | ✔         |
+| Per-port retention cleanup                  | ✔         |
+| Auto cron setup                             | ✔         |
+| Fully isolated restore script per port      | ✔         |
+| Zero mixing between projects                | ✔         |
 
 ---
 
-# 📁 File Structure
+# 📁 New File Structure (Per-Port Architecture)
+
+Every Mongo port gets its own directory:
 
 ```
 /opt/mongo-backups/
 │
-├── backup-config.env             # Full configuration
-├── run-mongo-s3-backup.sh        # Backup runner (daily/monthly)
-├── restore-mongo-from-s3.sh      # Restore script
-└── tmp/                          # Temporary files
+├── 27017/
+│   ├── backup-config.env
+│   ├── run-mongo-s3-backup.sh
+│   ├── restore-mongo-from-s3.sh
+│   └── tmp/
+│
+├── 27019/
+│   ├── backup-config.env
+│   ├── run-mongo-s3-backup.sh
+│   ├── restore-mongo-from-s3.sh
+│   └── tmp/
+│
+└── ...
 ```
+
+This means:
+
+* Wallet DB → own bucket/folder
+* FWMS DB → own bucket/folder
+* Rail DB → own bucket/folder
+* Bus DB → own bucket/folder
+
+**No interference between systems.**
 
 ---
 
@@ -49,121 +80,123 @@ Run:
 bash stacks/mongo-backup/scripts/setup-mongo-s3-backup.sh
 ```
 
-You will be asked for:
+You will be asked:
 
-- Number of Mongo instances  
-- Port / username / password  
-- Zata endpoint  
-- Bucket name  
-- Folder prefix  
-- GPG encryption password  
-- Retention days / months  
+* MongoDB port
+* Username / password / auth DB
+* Zata endpoint
+* Bucket name (you can use different bucket for each port)
+* Folder prefix (wallet / fwms / rail / bus…)
+* GPG encryption password
+* Retention settings
 
-This will generate:
+This generates:
 
 ```
-/opt/mongo-backups/backup-config.env
-/opt/mongo-backups/run-mongo-s3-backup.sh
+/opt/mongo-backups/<PORT>/backup-config.env
+/opt/mongo-backups/<PORT>/run-mongo-s3-backup.sh
+/opt/mongo-backups/<PORT>/restore-mongo-from-s3.sh
 ```
+
+Each port becomes an **independent backup system**.
 
 ---
 
-# 📅 Cron Jobs Installed Automatically
+# 📅 Cron Jobs (Per Port)
 
-Daily @ 02:30 AM:
-
-```
-/opt/mongo-backups/run-mongo-s3-backup.sh daily
-```
-
-Monthly @ 03:00 AM on 1st:
+Example for port **27017**:
 
 ```
-/opt/mongo-backups/run-mongo-s3-backup.sh monthly
+/opt/mongo-backups/27017/run-mongo-s3-backup.sh daily
+/opt/mongo-backups/27017/run-mongo-s3-backup.sh monthly
 ```
 
-Logs stored at:
+Example for port **27019**:
 
 ```
-/var/log/mongo-backup-daily.log
-/var/log/mongo-backup-monthly.log
+/opt/mongo-backups/27019/run-mongo-s3-backup.sh daily
+/opt/mongo-backups/27019/run-mongo-s3-backup.sh monthly
 ```
 
 ---
 
 # 🧪 Manual Run
 
-Daily backup:
+For port 27017:
 
 ```
-/opt/mongo-backups/run-mongo-s3-backup.sh daily
+/opt/mongo-backups/27017/run-mongo-s3-backup.sh daily
+/opt/mongo-backups/27017/run-mongo-s3-backup.sh monthly
 ```
 
-Monthly backup:
+For port 27019:
 
 ```
-/opt/mongo-backups/run-mongo-s3-backup.sh monthly
+/opt/mongo-backups/27019/run-mongo-s3-backup.sh daily
+/opt/mongo-backups/27019/run-mongo-s3-backup.sh monthly
 ```
 
 ---
 
-# 🔐 Encryption Details
+# 🔐 Encryption
 
-All backups are encrypted using:
-
-```
-gpg --batch --yes --passphrase "$ENCRYPTION_PASSPHRASE" -c dump.gz
-```
-
-Result:
+Each dump is encrypted using GPG symmetric encryption:
 
 ```
-filename.archive.gz.gpg
+mongo-<port>-<mode>-<timestamp>.archive.gz.gpg
 ```
 
-Only decryptable with your passphrase.
+Restorable only with the same passphrase.
 
 ---
 
-# 🗄 Restore Script
+# 🗄 Restore Script (Per Port)
 
-Run:
+Each port has its own restore script:
 
 ```
-bash /opt/mongo-backups/restore-mongo-from-s3.sh
+bash /opt/mongo-backups/<PORT>/restore-mongo-from-s3.sh
 ```
 
 Restore Flow:
 
-1. Select Mongo port  
-2. Select daily/monthly  
-3. Select backup index from S3  
-4. Backup is downloaded  
-5. GPG decrypted  
-6. Extracted  
-7. Restored via:
+1. Choose daily / monthly
+2. Script lists backups from:
 
-```
-mongorestore --archive dump.archive --gzip --drop
-```
-
----
-
-# 🧹 Retention Cleanup Logic
-
-### Daily  
-Keep last **10** backups per port.
-
-### Monthly  
-Keep last **6** backups per port.
-
-Automatically deletes the oldest backups beyond retention.
+   ```
+   s3://<bucket>/<prefix>/<port>/<daily|monthly>/
+   ```
+3. Select backup index
+4. Download
+5. Decrypt
+6. Extract
+7. Restore via mongorestore
 
 ---
 
-# 🛡 Hidden Backup Replica (VPS4)
+# 🧹 Retention Cleanup
 
-Backups should always run on your hidden replica:
+Each port maintains its own retention:
+
+### Daily
+
+```
+DAILY_RETENTION = 10 (default)
+```
+
+### Monthly
+
+```
+MONTHLY_RETENTION = 6 (default)
+```
+
+Oldest backups are deleted automatically per port.
+
+---
+
+# 🛡 Recommended: Use Hidden Replica for Backups
+
+Always back up from hidden node:
 
 ```
 priority: 0
@@ -171,44 +204,45 @@ votes: 0
 hidden: true
 ```
 
-Configured using:
+Configure:
 
 ```
 rs.add({
-  host: "10.50.x.x:27019",
-  priority: 0,
+  host: "10.50.x.x:<port>",
   hidden: true,
+  priority: 0,
   votes: 0
 })
 ```
 
-This ensures:
+Benefits:
 
-- No read/write load on primary  
-- Always up-to-date replica  
-- Safe for backups  
-
----
-
-# 🧾 Restore Example
-
-```
-Mongo Ports Available:
- - 27019
-
-Enter port: 27019
-Enter restore type: daily
-Choose backup index: 3
-Target host: 127.0.0.1
-Target port: 27019
-User: superuser
-Pass: *****
-Auth DB: admin
-```
-
-Backup restored successfully.
+* Zero load on primary
+* Backups do not slow down production
+* Safe, consistent snapshots
 
 ---
 
-# 🎉 Done  
-Your Mongo backup system is now fully documented and production-ready.
+# 🧾 Example Bucket Structure
+
+### Wallet DB (port 27019)
+
+```
+saarmongobackups
+└── wallet
+    └── 27019
+        ├── daily
+        └── monthly
+```
+
+### FWMS DB (port 27017)
+
+```
+saarmongobackups
+└── fwms
+    └── 27017
+        ├── daily
+        └── monthly
+```
+
+---

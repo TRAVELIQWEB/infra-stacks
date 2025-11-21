@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -e
 
-GREEN="\e[32m"
-RED="\e[31m"
-YELLOW="\e[33m"
 BLUE="\e[34m"
+GREEN="\e[32m"
+YELLOW="\e[33m"
+RED="\e[31m"
 RESET="\e[0m"
 
 echo -e "${BLUE}======================================================"
-echo -e "        MongoDB → Zata (S3) Backup Setup Script"
+echo -e "        MongoDB → Zata (S3) PER-PORT Backup Setup"
 echo -e "======================================================${RESET}"
 
 ###############################################
@@ -36,12 +36,10 @@ if ! command -v mongodump >/dev/null 2>&1; then
 
   TMP_DEB="/tmp/mongodb-tools.deb"
 
-  # Download from MongoDB official downloads
   wget -qO "$TMP_DEB" \
     "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.9.4.deb"
 
   sudo apt install -y "$TMP_DEB"
-
   rm -f "$TMP_DEB"
 
   if command -v mongodump >/dev/null 2>&1; then
@@ -54,58 +52,35 @@ else
   echo -e "${GREEN}MongoDB Tools already installed.${RESET}"
 fi
 
+###############################################
+# 1) Ask for ONE Mongo instance (per run)
+###############################################
+echo -e "\n${YELLOW}--- Mongo Instance Details (for THIS setup run) ---${RESET}"
+
+read -rp "Mongo port (e.g., 27017, 27019): " MONGO_PORT
+read -rp "Mongo username: " MONGO_USER
+read -rp "Mongo password: " MONGO_PASS
+read -rp "Auth DB (default: admin): " MONGO_AUTHDB
+[ -z "$MONGO_AUTHDB" ] && MONGO_AUTHDB="admin"
+
+MONGO_HOST="127.0.0.1"
 
 ###############################################
-# 1) Ask for Mongo instances
-###############################################
-read -rp "How many MongoDB instances do you want to back up? " MONGO_COUNT
-
-if ! [[ "$MONGO_COUNT" =~ ^[0-9]+$ ]] || [ "$MONGO_COUNT" -le 0 ]; then
-  echo -e "${RED}Invalid number. Exiting.${RESET}"
-  exit 1
-fi
-
-MONGO_PORTS=""
-INSTANCE_VARS=""
-
-for (( i=1; i<=MONGO_COUNT; i++ )); do
-  echo -e "\n${YELLOW}--- Mongo Instance #$i ---${RESET}"
-  read -rp "Mongo port (e.g., 27019): " PORT
-  read -rp "Mongo username for this port: " USER
-  read -rp "Mongo password for this port: " PASS
-  read -rp "Auth DB for this port (default: admin): " AUTHDB
-  [ -z "$AUTHDB" ] && AUTHDB="admin"
-
-  HOST="127.0.0.1"
-
-  MONGO_PORTS="$MONGO_PORTS $PORT"
-
-  INSTANCE_VARS+="
-MONGO_HOST_${PORT}=\"${HOST}\"
-MONGO_USER_${PORT}=\"${USER}\"
-MONGO_PASS_${PORT}=\"${PASS}\"
-MONGO_AUTHDB_${PORT}=\"${AUTHDB}\"
-"
-done
-
-MONGO_PORTS=$(echo "$MONGO_PORTS" | xargs)
-
-###############################################
-# 2) Ask for Zata S3 settings
+# 2) Zata S3 settings (per port)
 ###############################################
 echo -e "\n${BLUE}--- Zata (S3-compatible) Settings ---${RESET}"
 
 read -rp "Zata S3 Endpoint URL (default: https://s3.zata.cloud): " S3_ENDPOINT
 [ -z "$S3_ENDPOINT" ] && S3_ENDPOINT="https://s3.zata.cloud"
 
-# Force https:// prefix
+# Ensure it starts with http/https
 if [[ "$S3_ENDPOINT" != http* ]]; then
   S3_ENDPOINT="https://${S3_ENDPOINT}"
 fi
 
 read -rp "S3 Bucket Name: " S3_BUCKET
 
-read -rp "S3 Folder Prefix (default: mongo-backups): " S3_PREFIX
+read -rp "S3 Folder Prefix (project name, e.g., fwms, wallet) [default: mongo-backups]: " S3_PREFIX
 [ -z "$S3_PREFIX" ] && S3_PREFIX="mongo-backups"
 
 read -rp "S3 Region (default: ap-south-1): " S3_REGION
@@ -132,22 +107,33 @@ read -rp "Monthly backup retention (count, default 6): " MONTHLY_RET
 [ -z "$MONTHLY_RET" ] && MONTHLY_RET=6
 
 ###############################################
-# 4) Create backup directory & config
+# 4) Per-port backup directory & config
 ###############################################
-BACKUP_DIR="/opt/mongo-backups"
-CONFIG_FILE="${BACKUP_DIR}/backup-config.env"
-RUN_SCRIPT="${BACKUP_DIR}/run-mongo-s3-backup.sh"
+BASE_DIR="/opt/mongo-backups"
+PORT_DIR="${BASE_DIR}/${MONGO_PORT}"
+CONFIG_FILE="${PORT_DIR}/backup-config.env"
+RUN_SCRIPT="${PORT_DIR}/run-mongo-s3-backup.sh"
+RESTORE_SCRIPT="${PORT_DIR}/restore-mongo-from-s3.sh"
+TMP_DIR="${PORT_DIR}/tmp"
 
-echo -e "\n${BLUE}Creating backup directory at ${BACKUP_DIR}...${RESET}"
-sudo mkdir -p "$BACKUP_DIR"
-sudo chown "$(whoami)":"$(whoami)" "$BACKUP_DIR"
+echo -e "\n${BLUE}Creating per-port backup directory at ${PORT_DIR}...${RESET}"
+sudo mkdir -p "$TMP_DIR"
+sudo chown -R "$(whoami)":"$(whoami)" "$BASE_DIR"
 
 echo -e "${BLUE}Writing config file: ${CONFIG_FILE}${RESET}"
 
 cat > "$CONFIG_FILE" <<EOF
-# MongoDB → Zata S3 Backup Configuration
+# MongoDB → Zata S3 Backup Configuration (per-port)
 
-BACKUP_DIR="${BACKUP_DIR}"
+BACKUP_DIR="${PORT_DIR}"
+TMP_DIR="${TMP_DIR}"
+
+# Mongo connection
+MONGO_PORT="${MONGO_PORT}"
+MONGO_HOST="${MONGO_HOST}"
+MONGO_USER="${MONGO_USER}"
+MONGO_PASS="${MONGO_PASS}"
+MONGO_AUTHDB="${MONGO_AUTHDB}"
 
 # Zata / S3 settings
 S3_ENDPOINT="${S3_ENDPOINT}"
@@ -155,22 +141,22 @@ S3_BUCKET="${S3_BUCKET}"
 S3_PREFIX="${S3_PREFIX}"
 S3_REGION="${S3_REGION}"
 
+# AWS-style credentials for Zata
 AWS_ACCESS_KEY_ID="${S3_ACCESS_KEY_ID}"
 AWS_SECRET_ACCESS_KEY="${S3_SECRET_ACCESS_KEY}"
 
+# Encryption
 ENCRYPTION_PASSPHRASE="${ENC_PASS}"
 
+# Retention
 DAILY_RETENTION=${DAILY_RET}
 MONTHLY_RETENTION=${MONTHLY_RET}
-
-MONGO_PORTS="${MONGO_PORTS}"
-${INSTANCE_VARS}
 EOF
 
 echo -e "${GREEN}Config saved to ${CONFIG_FILE}${RESET}"
 
 ###############################################
-# 5) Create the runtime backup script
+# 5) Create per-port backup runner script
 ###############################################
 echo -e "${BLUE}Writing backup runner script: ${RUN_SCRIPT}${RESET}"
 
@@ -178,19 +164,22 @@ cat > "$RUN_SCRIPT" <<'EOF'
 #!/usr/bin/env bash
 set -e
 
-CONFIG_FILE="/opt/mongo-backups/backup-config.env"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+CONFIG_FILE="${SCRIPT_DIR}/backup-config.env"
+
 if [ ! -f "$CONFIG_FILE" ]; then
-  echo "Config file not found!"
+  echo "Config file not found: $CONFIG_FILE"
   exit 1
 fi
 
+# shellcheck source=/dev/null
 source "$CONFIG_FILE"
 
 export AWS_ACCESS_KEY_ID
 export AWS_SECRET_ACCESS_KEY
 export AWS_DEFAULT_REGION="$S3_REGION"
 
-MODE="${1:-daily}"
+MODE="${1:-daily}"  # daily | monthly
 
 if [ "$MODE" != "daily" ] && [ "$MODE" != "monthly" ]; then
   echo "Usage: $0 [daily|monthly]"
@@ -200,103 +189,227 @@ fi
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 SUBFOLDER="$MODE"
 
-mkdir -p "$BACKUP_DIR/tmp"
+mkdir -p "$TMP_DIR"
 
-echo "=== Mongo Backup Started: MODE=$MODE TIME=$TIMESTAMP ==="
+echo "=== Mongo Backup Started: PORT=$MONGO_PORT MODE=$MODE TIME=$TIMESTAMP ==="
 
-for PORT in $MONGO_PORTS; do
+DUMP_FILE="${TMP_DIR}/mongo-${MONGO_PORT}-${MODE}-${TIMESTAMP}.archive.gz"
+ENC_FILE="${DUMP_FILE}.gpg"
 
-    HOST_VAR="MONGO_HOST_${PORT}"
-    USER_VAR="MONGO_USER_${PORT}"
-    PASS_VAR="MONGO_PASS_${PORT}"
-    AUTHDB_VAR="MONGO_AUTHDB_${PORT}"
+echo "--- Dumping MongoDB port ${MONGO_PORT} ---"
+mongodump \
+  --host "$MONGO_HOST" \
+  --port "$MONGO_PORT" \
+  -u "$MONGO_USER" \
+  -p "$MONGO_PASS" \
+  --authenticationDatabase "$MONGO_AUTHDB" \
+  --gzip \
+  --archive="$DUMP_FILE"
 
-    HOST="${!HOST_VAR}"
-    USER="${!USER_VAR}"
-    PASS="${!PASS_VAR}"
-    AUTHDB="${!AUTHDB_VAR}"
+echo "--- Encrypting dump ---"
+gpg --batch --yes --passphrase "$ENCRYPTION_PASSPHRASE" -c "$DUMP_FILE"
+rm -f "$DUMP_FILE"
 
+S3_KEY="${S3_PREFIX}/${MONGO_PORT}/${SUBFOLDER}/mongo-${MONGO_PORT}-${MODE}-${TIMESTAMP}.archive.gz.gpg"
 
-  DUMP_FILE="${BACKUP_DIR}/tmp/mongo-${PORT}-${MODE}-${TIMESTAMP}.archive.gz"
-  ENC_FILE="${DUMP_FILE}.gpg"
-
-  echo "--- Dumping MongoDB port ${PORT} ---"
-  mongodump \
-    --host "$HOST" \
-    --port "$PORT" \
-    -u "$USER" \
-    -p "$PASS" \
-    --authenticationDatabase "$AUTHDB" \
-    --gzip \
-    --archive="$DUMP_FILE"
-
-  echo "--- Encrypting dump ---"
-  gpg --batch --yes --passphrase "$ENCRYPTION_PASSPHRASE" -c "$DUMP_FILE"
-
-  rm -f "$DUMP_FILE"
-
-  S3_KEY="${S3_PREFIX}/${PORT}/${SUBFOLDER}/mongo-${PORT}-${MODE}-${TIMESTAMP}.archive.gz.gpg"
-
-  echo "--- Uploading to S3: ${S3_KEY} ---"
-  aws --endpoint-url "$S3_ENDPOINT" s3 cp "$ENC_FILE" "s3://${S3_BUCKET}/${S3_KEY}"
-
-  rm -f "$ENC_FILE"
-done
+echo "--- Uploading to S3: s3://${S3_BUCKET}/${S3_KEY} ---"
+aws --endpoint-url "$S3_ENDPOINT" s3 cp "$ENC_FILE" "s3://${S3_BUCKET}/${S3_KEY}"
+rm -f "$ENC_FILE"
 
 ###############################################
-# Retention
+# Retention Cleanup
 ###############################################
 RETENTION=$DAILY_RETENTION
 [ "$MODE" = "monthly" ] && RETENTION=$MONTHLY_RETENTION
 
-echo "=== Retention Cleanup ==="
+echo "=== Retention Cleanup (keep last $RETENTION ${MODE} backups) ==="
 
-for PORT in $MONGO_PORTS; do
-  PREFIX_PATH="${S3_PREFIX}/${PORT}/${SUBFOLDER}/"
+PREFIX_PATH="${S3_PREFIX}/${MONGO_PORT}/${SUBFOLDER}/"
 
-  OBJECTS=$(aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://${S3_BUCKET}/${PREFIX_PATH}" | awk '{print $4}' | sort)
+OBJECTS=$(aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://${S3_BUCKET}/${PREFIX_PATH}" 2>/dev/null | awk '{print $4}' | sort)
 
-  [ -z "$OBJECTS" ] && continue
-
+if [ -z "$OBJECTS" ]; then
+  echo "No backups found for ${MONGO_PORT}/${SUBFOLDER}"
+else
   COUNT=$(echo "$OBJECTS" | wc -l)
-
   if [ "$COUNT" -le "$RETENTION" ]; then
-    continue
+    echo "Backups: ${COUNT}/${RETENTION} → nothing to delete."
+  else
+    DELETE_COUNT=$((COUNT - RETENTION))
+    echo "Backups: ${COUNT}/${RETENTION} → deleting ${DELETE_COUNT} oldest."
+    echo "$OBJECTS" | head -n "$DELETE_COUNT" | while read -r KEY; do
+      [ -z "$KEY" ] && continue
+      echo "Deleting s3://${S3_BUCKET}/${PREFIX_PATH}${KEY}"
+      aws --endpoint-url "$S3_ENDPOINT" s3 rm "s3://${S3_BUCKET}/${PREFIX_PATH}${KEY}"
+    done
   fi
+fi
 
-  DELETE_COUNT=$((COUNT - RETENTION))
-
-  echo "Deleting $DELETE_COUNT old backups for port $PORT"
-
-  echo "$OBJECTS" | head -n "$DELETE_COUNT" | while read -r KEY; do
-    aws --endpoint-url "$S3_ENDPOINT" s3 rm "s3://${S3_BUCKET}/${PREFIX_PATH}${KEY}"
-  done
-done
-
-echo "=== Mongo Backup Completed ==="
+echo "=== Mongo Backup Completed (PORT=$MONGO_PORT MODE=$MODE) ==="
 EOF
 
 chmod +x "$RUN_SCRIPT"
 
 ###############################################
-# 6) Setup cron jobs
+# 6) Create per-port restore script
 ###############################################
-echo -e "${BLUE}Setting up cron jobs...${RESET}"
+echo -e "${BLUE}Writing restore script: ${RESTORE_SCRIPT}${RESET}"
+
+cat > "$RESTORE_SCRIPT" <<'EOF'
+#!/usr/bin/env bash
+set -e
+
+BLUE="\e[34m"
+GREEN="\e[32m"
+YELLOW="\e[33m"
+RED="\e[31m"
+RESET="\e[0m"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+CONFIG_FILE="${SCRIPT_DIR}/backup-config.env"
+
+echo -e "${BLUE}====================================================="
+echo -e "                 MongoDB Restore Script"
+echo -e "=====================================================${RESET}"
+
+if [ ! -f "$CONFIG_FILE" ]; then
+  echo -e "${RED}Backup config file not found: $CONFIG_FILE${RESET}"
+  exit 1
+fi
+
+# shellcheck source=/dev/null
+source "$CONFIG_FILE"
+
+export AWS_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY
+export AWS_DEFAULT_REGION="$S3_REGION"
+
+###########################################
+# Pickup Restore Mode (daily or monthly)
+###########################################
+read -rp "Restore type? (daily/monthly): " MODE
+if [[ "$MODE" != "daily" && "$MODE" != "monthly" ]]; then
+  echo -e "${RED}Invalid mode. Choose daily or monthly.${RESET}"
+  exit 1
+fi
+
+PREFIX="${S3_PREFIX}/${MONGO_PORT}/${MODE}/"
+
+echo -e "${BLUE}Fetching backup list from S3 (s3://${S3_BUCKET}/${PREFIX})...${RESET}"
+
+TMP_LIST="${TMP_DIR}/s3list-${MONGO_PORT}-${MODE}.txt"
+mkdir -p "$TMP_DIR"
+
+aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://${S3_BUCKET}/${PREFIX}" > "$TMP_LIST" 2>/dev/null || true
+
+if ! [[ -s "$TMP_LIST" ]]; then
+  echo -e "${RED}No backups found in S3 for this port/mode.${RESET}"
+  exit 1
+fi
+
+echo -e "${GREEN}Available backups:${RESET}"
+nl -w2 -s". " "$TMP_LIST"
+
+###########################################
+# Ask user which backup to restore
+###########################################
+read -rp "Enter file index to restore: " FILE_INDEX
+
+FILE_NAME=$(sed -n "${FILE_INDEX}p" "$TMP_LIST" | awk '{print $4}')
+
+if [[ -z "$FILE_NAME" ]]; then
+  echo -e "${RED}Invalid selection.${RESET}"
+  exit 1
+fi
+
+echo -e "${BLUE}Selected backup: ${FILE_NAME}${RESET}"
+
+###########################################
+# Download backup
+###########################################
+DOWNLOAD_PATH="${TMP_DIR}/${FILE_NAME}"
+
+echo -e "${YELLOW}Downloading backup from S3...${RESET}"
+
+aws --endpoint-url "$S3_ENDPOINT" s3 cp \
+  "s3://${S3_BUCKET}/${PREFIX}${FILE_NAME}" \
+  "$DOWNLOAD_PATH"
+
+###########################################
+# Decrypt backup (keep .gz)
+###########################################
+DECRYPTED="${DOWNLOAD_PATH%.gpg}"   # will still end with .gz
+
+echo -e "${YELLOW}Decrypting backup...${RESET}"
+
+gpg --batch --yes --passphrase "$ENCRYPTION_PASSPHRASE" -d "$DOWNLOAD_PATH" > "$DECRYPTED"
+
+###########################################
+# Ask for Target Mongo host/port/creds
+###########################################
+read -rp "Target Mongo host (default: 127.0.0.1): " TARGET_HOST
+[ -z "$TARGET_HOST" ] && TARGET_HOST="127.0.0.1"
+
+read -rp "Target Mongo port (default: $MONGO_PORT): " TARGET_PORT
+[ -z "$TARGET_PORT" ] && TARGET_PORT="$MONGO_PORT"
+
+read -rp "Target Mongo username: " TARGET_USER
+read -rp "Target Mongo password: " TARGET_PASS
+read -rp "Auth DB (default: admin): " TARGET_AUTHDB
+[ -z "$TARGET_AUTHDB" ] && TARGET_AUTHDB="admin"
+
+###########################################
+# Restore into Target Mongo
+###########################################
+echo -e "${BLUE}Restoring into MongoDB ${TARGET_HOST}:${TARGET_PORT} ...${RESET}"
+
+mongorestore \
+  --host "$TARGET_HOST" \
+  --port "$TARGET_PORT" \
+  -u "$TARGET_USER" \
+  -p "$TARGET_PASS" \
+  --authenticationDatabase "$TARGET_AUTHDB" \
+  --archive="$DECRYPTED" \
+  --gzip \
+  --drop
+
+echo -e "${GREEN}Restore completed successfully!${RESET}"
+
+###########################################
+# Cleanup temp files
+###########################################
+rm -f "$DOWNLOAD_PATH" "$DECRYPTED" "$TMP_LIST"
+
+echo -e "${BLUE}Temporary files cleaned.${RESET}"
+EOF
+
+chmod +x "$RESTORE_SCRIPT"
+
+###############################################
+# 7) Setup cron jobs (per-port)
+###############################################
+echo -e "${BLUE}Setting up cron jobs for port ${MONGO_PORT}...${RESET}"
 
 CRON_CMD="$RUN_SCRIPT"
 
-( crontab -l 2>/dev/null | grep -v "$CRON_CMD" || true ) > /tmp/current_cron.$$
+# Remove old entries for THIS port's script
+( crontab -l 2>/dev/null | grep -v "$CRON_CMD" || true ) > /tmp/current_cron.$$ || true
 
-echo "30 2 * * * $CRON_CMD daily >> /var/log/mongo-backup-daily.log 2>&1" >> /tmp/current_cron.$$
-echo "0 3 1 * * $CRON_CMD monthly >> /var/log/mongo-backup-monthly.log 2>&1" >> /tmp/current_cron.$$
+# Daily backup at 02:30
+echo "30 2 * * * $CRON_CMD daily >> /var/log/mongo-backup-${MONGO_PORT}-daily.log 2>&1" >> /tmp/current_cron.$$
+
+# Monthly backup on 1st at 03:00
+echo "0 3 1 * * * $CRON_CMD monthly >> /var/log/mongo-backup-${MONGO_PORT}-monthly.log 2>&1" >> /tmp/current_cron.$$
 
 crontab /tmp/current_cron.$$
 rm -f /tmp/current_cron.$$
 
-echo -e "${GREEN}Cron jobs installed.${RESET}"
-echo "Daily:   02:30"
-echo "Monthly: 03:00 (1st day)"
+echo -e "${GREEN}Cron jobs installed for port ${MONGO_PORT}.${RESET}"
+echo "Daily:   02:30  → $CRON_CMD daily"
+echo "Monthly: 03:00  → $CRON_CMD monthly"
 echo ""
-echo "Test manually:"
-echo "  $RUN_SCRIPT daily"
-echo "  $RUN_SCRIPT monthly"
+echo "Manual test for this port:"
+echo "  $CRON_CMD daily"
+echo "  $CRON_CMD monthly"
+echo ""
+echo -e "${GREEN}Setup complete for Mongo port ${MONGO_PORT}!${RESET}"

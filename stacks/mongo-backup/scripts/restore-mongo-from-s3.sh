@@ -12,41 +12,33 @@ echo -e "                 MongoDB Restore Script"
 echo -e "=====================================================${RESET}"
 
 ###########################################
-# Load backup config
+# Load per-port backup config
 ###########################################
-CONFIG_FILE="/opt/mongo-backups/backup-config.env"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+CONFIG_FILE="${SCRIPT_DIR}/backup-config.env"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
-    echo -e "${RED}Backup config file not found: $CONFIG_FILE${RESET}"
+    echo -e "${RED}Backup config file not found: ${CONFIG_FILE}${RESET}"
     exit 1
 fi
 
-# shellcheck source=/dev/null
+# shellcheck disable=SC1090
 source "$CONFIG_FILE"
 
 export AWS_ACCESS_KEY_ID
 export AWS_SECRET_ACCESS_KEY
 export AWS_DEFAULT_REGION="$S3_REGION"
 
-###########################################
-# Ask user which port to restore
-###########################################
-echo -e "${YELLOW}Mongo Ports Available For Restore:${RESET}"
-for PORT in $MONGO_PORTS; do
-    echo " - $PORT"
-done
-
-read -rp "Enter Mongo port you want to restore: " RESTORE_PORT
-
-if ! echo "$MONGO_PORTS" | grep -qw "$RESTORE_PORT"; then
-    echo -e "${RED}Port $RESTORE_PORT not found in config.${RESET}"
-    exit 1
-fi
+echo -e "${GREEN}Loaded config for Mongo Port: ${MONGO_PORT}${RESET}"
+echo -e "${GREEN}Project Prefix: ${S3_PREFIX}${RESET}"
+echo ""
 
 ###########################################
-# Pickup Restore Mode (daily or monthly)
+# Select restore type
 ###########################################
 read -rp "Restore type? (daily/monthly): " MODE
+
 if [[ "$MODE" != "daily" && "$MODE" != "monthly" ]]; then
     echo -e "${RED}Invalid mode. Choose daily or monthly.${RESET}"
     exit 1
@@ -55,47 +47,50 @@ fi
 ###########################################
 # Fetch available backups from S3
 ###########################################
-PREFIX="${S3_PREFIX}/${RESTORE_PORT}/${MODE}/"
 
-echo -e "${BLUE}Fetching backup list from S3...${RESET}"
+PREFIX="${S3_PREFIX}/${MONGO_PORT}/${MODE}/"
+TMP_LIST="${TMP_DIR}/restore-list-${MODE}.txt"
+mkdir -p "$TMP_DIR"
 
-aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://${S3_BUCKET}/${PREFIX}" > /tmp/s3list.txt
+echo -e "${BLUE}Fetching backup list: s3://${S3_BUCKET}/${PREFIX}${RESET}"
 
-if ! [[ -s /tmp/s3list.txt ]]; then
+aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://${S3_BUCKET}/${PREFIX}" > "$TMP_LIST" || true
+
+if ! [[ -s "$TMP_LIST" ]]; then
     echo -e "${RED}No backups found in S3 for this port/mode.${RESET}"
     exit 1
 fi
 
 echo -e "${GREEN}Available backups:${RESET}"
-nl -w2 -s". " /tmp/s3list.txt
+nl -w2 -s". " "$TMP_LIST"
 
 ###########################################
-# Ask user which backup to restore
+# Ask user which backup index to restore
 ###########################################
-read -rp "Enter file index to restore: " FILE_INDEX
+read -rp "Enter backup index to restore: " FILE_INDEX
 
-FILE_NAME=$(sed -n "${FILE_INDEX}p" /tmp/s3list.txt | awk '{print $4}')
+FILE_NAME=$(sed -n "${FILE_INDEX}p" "$TMP_LIST" | awk '{print $4}')
 
 if [[ -z "$FILE_NAME" ]]; then
     echo -e "${RED}Invalid selection.${RESET}"
     exit 1
 fi
 
+DOWNLOAD_PATH="${TMP_DIR}/${FILE_NAME}"
+
 echo -e "${BLUE}Selected backup: ${FILE_NAME}${RESET}"
 
 ###########################################
 # Download backup
 ###########################################
-DOWNLOAD_PATH="/opt/mongo-backups/tmp/${FILE_NAME}"
-
-echo -e "${YELLOW}Downloading backup from S3...${RESET}"
+echo -e "${YELLOW}Downloading file from S3...${RESET}"
 
 aws --endpoint-url "$S3_ENDPOINT" s3 cp \
     "s3://${S3_BUCKET}/${PREFIX}${FILE_NAME}" \
     "$DOWNLOAD_PATH"
 
 ###########################################
-# Decrypt backup
+# Decrypt backup (keeps .gz)
 ###########################################
 DECRYPTED="${DOWNLOAD_PATH%.gpg}"
 
@@ -104,35 +99,27 @@ echo -e "${YELLOW}Decrypting backup...${RESET}"
 gpg --batch --yes --passphrase "$ENCRYPTION_PASSPHRASE" -d "$DOWNLOAD_PATH" > "$DECRYPTED"
 
 ###########################################
-# Extract archive
+# Ask user for restore target
 ###########################################
-EXTRACT_DIR="/opt/mongo-backups/tmp/restore-${RESTORE_PORT}"
+echo ""
+echo -e "${BLUE}Enter TARGET MongoDB details (where to restore)${RESET}"
 
-echo -e "${YELLOW}Extracting compressed archive...${RESET}"
-
-rm -rf "$EXTRACT_DIR"
-mkdir -p "$EXTRACT_DIR"
-
-gunzip -c "$DECRYPTED" > "${EXTRACT_DIR}/dump.archive"
-
-###########################################
-# Ask for Target Mongo container/host
-###########################################
-read -rp "Target Mongo host (default: 127.0.0.1): " TARGET_HOST
+read -rp "Target Host (default: 127.0.0.1): " TARGET_HOST
 [ -z "$TARGET_HOST" ] && TARGET_HOST="127.0.0.1"
 
-read -rp "Target Mongo port (default: $RESTORE_PORT): " TARGET_PORT
-[ -z "$TARGET_PORT" ] && TARGET_PORT="$RESTORE_PORT"
+read -rp "Target Port (default: ${MONGO_PORT}): " TARGET_PORT
+[ -z "$TARGET_PORT" ] && TARGET_PORT="$MONGO_PORT"
 
-read -rp "Target Mongo username: " TARGET_USER
-read -rp "Target Mongo password: " TARGET_PASS
-read -rp "Auth DB (default: admin): " TARGET_AUTHDB
+read -rp "Target Username: " TARGET_USER
+read -rp "Target Password: " TARGET_PASS
+
+read -rp "Target Auth DB (default: admin): " TARGET_AUTHDB
 [ -z "$TARGET_AUTHDB" ] && TARGET_AUTHDB="admin"
 
 ###########################################
-# Restore into Target Mongo
+# Restore into target MongoDB
 ###########################################
-echo -e "${BLUE}Restoring into MongoDB ${TARGET_HOST}:${TARGET_PORT} ...${RESET}"
+echo -e "${BLUE}Restoring into ${TARGET_HOST}:${TARGET_PORT} ...${RESET}"
 
 mongorestore \
   --host "$TARGET_HOST" \
@@ -140,16 +127,15 @@ mongorestore \
   -u "$TARGET_USER" \
   -p "$TARGET_PASS" \
   --authenticationDatabase "$TARGET_AUTHDB" \
-  --archive="${EXTRACT_DIR}/dump.archive" \
+  --archive="$DECRYPTED" \
   --gzip \
   --drop
 
 echo -e "${GREEN}Restore completed successfully!${RESET}"
 
 ###########################################
-# Cleanup temp files
+# Clean temp files
 ###########################################
-rm -f "$DOWNLOAD_PATH" "$DECRYPTED"
-rm -rf "$EXTRACT_DIR"
+rm -f "$DOWNLOAD_PATH" "$DECRYPTED" "$TMP_LIST"
 
 echo -e "${BLUE}Temporary files cleaned.${RESET}"
