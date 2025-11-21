@@ -32,12 +32,28 @@ fi
 # Install MongoDB Tools (mongodump/mongorestore)
 ###############################################
 if ! command -v mongodump >/dev/null 2>&1; then
-  echo -e "${YELLOW}Installing MongoDB Database Tools...${RESET}"
-  sudo apt update -y
-  sudo apt install -y mongodb-database-tools
+  echo -e "${YELLOW}Installing MongoDB Database Tools (manual .deb)...${RESET}"
+
+  TMP_DEB="/tmp/mongodb-tools.deb"
+
+  # Download from MongoDB official downloads
+  wget -qO "$TMP_DEB" \
+    "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.9.4.deb"
+
+  sudo apt install -y "$TMP_DEB"
+
+  rm -f "$TMP_DEB"
+
+  if command -v mongodump >/dev/null 2>&1; then
+    echo -e "${GREEN}MongoDB Tools installed successfully.${RESET}"
+  else
+    echo -e "${RED}MongoDB Tools installation failed!${RESET}"
+    exit 1
+  fi
 else
   echo -e "${GREEN}MongoDB Tools already installed.${RESET}"
 fi
+
 
 ###############################################
 # 1) Ask for Mongo instances
