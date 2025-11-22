@@ -1,40 +1,37 @@
 # 🍃 Mongo Backup & Restore System
+
 ### Per-Port Automatic Encrypted Daily & Monthly Backups → Zata (S3 Compatible)
 
-This system **creates a completely isolated backup setup per MongoDB port**, each with:
+This system creates **fully isolated backup + restore flows per MongoDB port**, each with:
 
 - Its own backup directory  
-- Its own config file  
+- Its own config  
 - Its own run script  
 - Its own restore script  
-- Its own bucket or folder  
+- Its own bucket/folder  
 - Its own retention policy  
 
-Perfect for multi-project servers (wallet, fwms, rail, bus, etc.)
+Perfect for multi‑project servers (wallet, fwms, rail, bus, etc.)
 
 ---
 
 # 🚀 Features
 
-| Feature                                     | Supported |
-|---------------------------------------------|-----------|
+| Feature | Supported |
+|--------|-----------|
 | Multi Mongo Port Backups (isolated folders) | ✔ |
-| Different buckets for each port             | ✔ |
-| Different folder prefixes per project       | ✔ |
-| Zata S3 / S3 Compatible                     | ✔ |
-| Encryption (GPG symmetric)                  | ✔ |
-| Daily Backups                               | ✔ |
-| Monthly Backups                             | ✔ |
-| Per-port retention cleanup                  | ✔ |
-| Auto cron setup                             | ✔ |
-| Fully isolated restore script per port      | ✔ |
-| Zero mixing between projects                | ✔ |
+| Different buckets for each port | ✔ |
+| Different folder prefixes per project | ✔ |
+| Zata S3 / S3 Compatible | ✔ |
+| GPG Encryption | ✔ |
+| Daily + Monthly Backups | ✔ |
+| Automatic Retention | ✔ |
+| Per-Port Restore Scripts | ✔ |
+| Zero Overlapping Between Projects | ✔ |
 
 ---
 
-# 📁 Per-Port Directory Structure
-
-Every Mongo port gets its own directory:
+# 📁 Folder Structure
 
 ```
 /opt/mongo-backups/
@@ -54,7 +51,7 @@ Every Mongo port gets its own directory:
 └── ...
 ```
 
-This means each DB has full isolation.
+Each port = completely isolated backup environment.
 
 ---
 
@@ -66,17 +63,17 @@ Run:
 bash stacks/mongo-backup/scripts/setup-mongo-s3-backup.sh
 ```
 
-You will be asked:
+Setup asks for:
 
 - MongoDB port  
-- Username / password / auth DB  
+- Credentials  
 - Zata endpoint  
-- Bucket name  
-- Folder prefix (wallet / fwms / rail / bus)  
-- GPG encryption password  
+- Bucket name (different bucket allowed per port)  
+- Folder prefix (`wallet`, `fwms`, etc.)  
+- Encryption password  
 - Retention settings  
 
-This generates:
+This generates three files for that port:
 
 ```
 /opt/mongo-backups/<PORT>/backup-config.env
@@ -84,22 +81,18 @@ This generates:
 /opt/mongo-backups/<PORT>/restore-mongo-from-s3.sh
 ```
 
-Each port becomes an independent backup system.
-
 ---
 
 # 📅 Cron Jobs (Per Port)
 
-Examples:
-
-Port 27017:
+Example for **27017**:
 
 ```
 /opt/mongo-backups/27017/run-mongo-s3-backup.sh daily
 /opt/mongo-backups/27017/run-mongo-s3-backup.sh monthly
 ```
 
-Port 27019:
+Example for **27019**:
 
 ```
 /opt/mongo-backups/27019/run-mongo-s3-backup.sh daily
@@ -108,37 +101,28 @@ Port 27019:
 
 ---
 
-# 🧪 Manual Run
-
-Daily backup:
-
-```
-/opt/mongo-backups/<PORT>/run-mongo-s3-backup.sh daily
-```
-
-Monthly backup:
-
-```
-/opt/mongo-backups/<PORT>/run-mongo-s3-backup.sh monthly
-```
-
----
-
 # 🔐 Encryption
 
-Each dump is encrypted using GPG symmetric encryption:
+Backups are stored as encrypted files:
 
 ```
 mongo-<port>-<mode>-<timestamp>.archive.gz.gpg
 ```
 
-Only decryptable with your passphrase.
+---
+
+# 🧪 Manual Backup
+
+```
+/opt/mongo-backups/<PORT>/run-mongo-s3-backup.sh daily
+/opt/mongo-backups/<PORT>/run-mongo-s3-backup.sh monthly
+```
 
 ---
 
 # 🗄 Restore Script (Per Port)
 
-Each port has its own restore script:
+Run:
 
 ```
 bash /opt/mongo-backups/<PORT>/restore-mongo-from-s3.sh
@@ -146,40 +130,52 @@ bash /opt/mongo-backups/<PORT>/restore-mongo-from-s3.sh
 
 ---
 
-# ⚠️ Restore MUST BE Executed on PRIMARY (Master Node)
+# ⚠ FULL RESTORE MUST RUN ON PRIMARY (MASTER)
 
-To safely restore:
+MongoDB architecture:
+
+- Backup recommended on hidden replica  
+- Restore must run on **PRIMARY**, but after **stepDown**  
 
 ---
 
-# ✔️ Full Restore Steps
+# ✔️ Full Restore Steps (FINAL & CORRECT)
 
-## 1️⃣ Stop application writes  
+## **1️⃣ Stop application writes**
+
 Enable maintenance mode.
 
 ---
 
-## 2️⃣ Step down primary to allow restore
+## **2️⃣ Step down the primary**
+
+Run this on master:
 
 ```
 mongo
 rs.stepDown()
 ```
 
-This converts the primary into a secondary—MongoDB allows restore only on non-primary state.
+This converts primary → secondary, now safe to restore.
+
+Reconnect example:
+
+```
+docker exec -it mongo-<PORT> mongosh   --port <PORT>   -u <USER>   -p <PASSWORD>   --authenticationDatabase admin
+```
 
 ---
 
-## 3️⃣ Run the restore script
+## **3️⃣ Run the restore script**
 
 ```
 bash /opt/mongo-backups/<PORT>/restore-mongo-from-s3.sh
 ```
 
-The script will:
+Script performs:
 
 - Ask daily/monthly  
-- Show backup list  
+- List backups  
 - Download  
 - Decrypt  
 - Restore using:
@@ -190,19 +186,17 @@ mongorestore --archive --gzip --drop
 
 ---
 
-## 4️⃣ After restore, the node rejoins the replica set
+## **4️⃣ After restore completes**
 
-MongoDB will automatically:
+MongoDB automatically:
 
-- Elect a primary  
-- Sync other replicas  
-- Heal the replica set automatically  
-
-Nothing manual required.
+- Rejoins replica set  
+- Elects a primary  
+- Syncs all replicas from restored node  
 
 ---
 
-## 5️⃣ Start application again
+## **5️⃣ Start application again**
 
 Disable maintenance mode.
 
@@ -210,17 +204,32 @@ Disable maintenance mode.
 
 # 🔄 How Replicas Sync After Restore
 
-After restore completes on master:
+- Other replicas drop old data  
+- Perform full initial sync  
+- Automatically become consistent  
 
-- Other replicas automatically drop old data  
-- Perform full sync from the restored node  
-- Become consistent without any manual operations  
+No manual work needed.
+
+---
+
+# 🛡 Recommended Backup Topology
+
+Use hidden replica:
+
+```
+rs.add({
+  host: "10.50.x.x:<port>",
+  hidden: true,
+  priority: 0,
+  votes: 0
+})
+```
 
 ---
 
 # 🧾 Example Bucket Structure
 
-Wallet DB (27019):
+### Wallet DB (port **27019**)
 
 ```
 saarmongobackups
@@ -230,7 +239,7 @@ saarmongobackups
         └── monthly
 ```
 
-FWMS DB (27017):
+### FWMS DB (port **27017**)
 
 ```
 saarmongobackups
@@ -246,5 +255,5 @@ saarmongobackups
 
 - Backups should run on hidden replica  
 - Restore must run on master after stepDown  
-- Replication auto-recovers  
-- Each port is fully isolated  
+- Replication auto-heals  
+- Fully isolated per-port system  
