@@ -9,6 +9,48 @@ echo -e "=====================================================${RESET}"
 
 
 ###############################################
+# 0) Auto Install Dependencies
+###############################################
+echo -e "${BLUE}Checking required dependencies...${RESET}"
+
+NEED_INSTALL=()
+
+command -v aws >/dev/null 2>&1 || NEED_INSTALL+=("awscli")
+command -v gpg >/dev/null 2>&1 || NEED_INSTALL+=("gpg")
+
+if ! command -v mongorestore >/dev/null 2>&1; then
+    NEED_MONGO_TOOLS=true
+else
+    NEED_MONGO_TOOLS=false
+fi
+
+if [ ${#NEED_INSTALL[@]} -gt 0 ]; then
+    echo -e "${YELLOW}Installing missing packages: ${NEED_INSTALL[*]}${RESET}"
+    sudo apt update -y
+    sudo apt install -y "${NEED_INSTALL[@]}"
+else
+    echo -e "${GREEN}awscli + gpg OK${RESET}"
+fi
+
+if [ "$NEED_MONGO_TOOLS" = true ]; then
+    echo -e "${YELLOW}Installing MongoDB Tools (mongorestore)...${RESET}"
+
+    TMP_DEB="/tmp/mongodb-tools.deb"
+    wget -qO "$TMP_DEB" \
+      "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.9.4.deb"
+
+    sudo apt install -y "$TMP_DEB"
+    rm -f "$TMP_DEB"
+
+    if ! command -v mongorestore >/dev/null 2>&1; then
+        echo -e "${RED}Mongo tools installation failed!${RESET}"
+        exit 1
+    fi
+fi
+
+echo -e "${GREEN}All required tools installed.${RESET}"
+
+###############################################
 # 1) Ask Mongo Port
 ###############################################
 read -rp "Enter Mongo Port for restore (e.g., 27017, 27019): " MONGO_PORT
