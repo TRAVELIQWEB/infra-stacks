@@ -177,7 +177,8 @@ Node becomes **SECONDARY** → Safe to restore.
 ## **3️⃣ Run restore script**
 
 ```
-bash restore-mongo-from-s3.sh
+
+bash stacks/mongo-backup/scripts/restore-mongo-from-s3.sh
 ```
 
 The script:
