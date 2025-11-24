@@ -180,35 +180,19 @@ read -rp "Auth DB (default: admin): " AUTH
 
 
 ###############################################
-# 9) Restore with Version Handling
+# 9) Restore with Application-Only Approach
 ###############################################
-echo -e "${BLUE}Restoring into ${HOST}:${PORT} with version handling...${RESET}"
+echo -e "${BLUE}Restoring into ${HOST}:${PORT} (application data only)...${RESET}"
 
-# Clean system collections that cause version conflicts
-echo -e "${YELLOW}Cleaning system version data to prevent conflicts...${RESET}"
+# Extract the archive to see what databases are included
+echo -e "${YELLOW}Analyzing backup content...${RESET}"
 
-mongosh --quiet \
-  --host "$HOST" \
-  --port "$PORT" \
-  -u "$USER" \
-  -p "$PASS" \
-  --authenticationDatabase "$AUTH" \
-  --eval "
-  try { 
-    db.getSiblingDB('admin').system.version.drop(); 
-    print('✓ Dropped admin.system.version');
-  } catch(e) { 
-    print('Note: Could not drop admin.system.version:', e.message); 
-  }
-  try { 
-    db.getSiblingDB('admin').system.sessions.drop();
-    print('✓ Dropped admin.system.sessions');
-  } catch(e) { 
-    print('Note: Could not drop admin.system.sessions'); 
-  }
-  "
+# Create extraction directory
+EXTRACT_DIR="${TMP_DIR}/extracted"
+mkdir -p "$EXTRACT_DIR"
 
-# Now perform the restore
+# List databases in the archive
+echo -e "${YELLOW}Databases found in backup:${RESET}"
 mongorestore \
   --host "$HOST" \
   --port "$PORT" \
@@ -217,10 +201,48 @@ mongorestore \
   --authenticationDatabase "$AUTH" \
   --archive="$DEC" \
   --gzip \
-  --drop
+  --dryRun \
+  --objcheck 2>/dev/null | grep "using dump" | awk '{print $3}' | sort -u
 
-echo -e "${GREEN}Restore Completed Successfully.${RESET}"
+# Get list of application databases (exclude system databases)
+APPLICATION_DBS=$(mongorestore \
+  --host "$HOST" \
+  --port "$PORT" \
+  -u "$USER" \
+  -p "$PASS" \
+  --authenticationDatabase "$AUTH" \
+  --archive="$DEC" \
+  --gzip \
+  --dryRun \
+  --objcheck 2>/dev/null | grep "using dump" | awk '{print $3}' | sort -u | grep -v -E "^(admin|local|config)$")
 
+echo -e "${YELLOW}Application databases to restore:${RESET}"
+echo "$APPLICATION_DBS"
+
+if [ -z "$APPLICATION_DBS" ]; then
+    echo -e "${RED}No application databases found in backup!${RESET}"
+    exit 1
+fi
+
+# Restore each application database individually
+for DB in $APPLICATION_DBS; do
+    echo -e "${BLUE}Restoring database: $DB${RESET}"
+    
+    mongorestore \
+      --host "$HOST" \
+      --port "$PORT" \
+      -u "$USER" \
+      -p "$PASS" \
+      --authenticationDatabase "$AUTH" \
+      --archive="$DEC" \
+      --gzip \
+      --nsInclude="${DB}.*" \
+      --drop
+    
+    echo -e "${GREEN}✓ Database $DB restored successfully${RESET}"
+done
+
+echo -e "${GREEN}All application databases restored successfully!${RESET}"
 
 ###############################################
 # 10) Cleanup
