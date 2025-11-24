@@ -35,12 +35,12 @@ if ! command -v mongodump >/dev/null 2>&1; then
   echo -e "${YELLOW}Installing MongoDB Database Tools (manual .deb)...${RESET}"
 
   TMP_DEB="/tmp/mongodb-tools.deb"
-
   
   wget -qO "$TMP_DEB" \
     "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.13.0.deb"
 
-  sudo apt install -y "$TMP_DEB"
+  # FIX: Use dpkg instead of apt install for .deb files
+  sudo dpkg -i "$TMP_DEB" || sudo apt-get install -f -y
   rm -f "$TMP_DEB"
 
   if command -v mongodump >/dev/null 2>&1; then
@@ -198,7 +198,7 @@ DUMP_FILE="${TMP_DIR}/mongo-${MONGO_PORT}-${MODE}-${TIMESTAMP}.archive.gz"
 ENC_FILE="${DUMP_FILE}.gpg"
 
 echo "--- Dumping MongoDB port ${MONGO_PORT} ---"
-/usr/local/bin/mongodump \
+mongodump \
   --host "$MONGO_HOST" \
   --port "$MONGO_PORT" \
   -u "$MONGO_USER" \
@@ -206,11 +206,10 @@ echo "--- Dumping MongoDB port ${MONGO_PORT} ---"
   --authenticationDatabase "$MONGO_AUTHDB" \
   --gzip \
   --archive="$DUMP_FILE" \
-  --nsExclude "admin.system.users" \
-  --nsExclude "admin.system.roles" \
-  --nsExclude "admin.system.version" \
-  --nsExclude "config.system.sessions" \
-  --nsExclude "local.*"
+  --excludeCollection=system.users \
+  --excludeCollection=system.roles \
+  --excludeCollection=system.version \
+  --excludeCollection=system.sessions
 
 
 echo "--- Encrypting dump ---"
