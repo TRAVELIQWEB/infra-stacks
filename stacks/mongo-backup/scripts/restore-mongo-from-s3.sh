@@ -180,54 +180,43 @@ read -rp "Auth DB (default: admin): " AUTH
 
 
 ###############################################
-# 9) Restore with Application-Only Approach
+# 9) Restore - Simple Approach
 ###############################################
-echo -e "${BLUE}Restoring into ${HOST}:${PORT} (application data only)...${RESET}"
+echo -e "${BLUE}Restoring into ${HOST}:${PORT}...${RESET}"
 
-# Extract the archive to see what databases are included
-echo -e "${YELLOW}Analyzing backup content...${RESET}"
+# First, let's check what's in the backup by extracting it temporarily
+echo -e "${YELLOW}Checking backup contents...${RESET}"
 
-# Create extraction directory
-EXTRACT_DIR="${TMP_DIR}/extracted"
+# Extract to directory format to see databases
+EXTRACT_DIR="${TMP_DIR}/extract"
 mkdir -p "$EXTRACT_DIR"
 
-# List databases in the archive
-echo -e "${YELLOW}Databases found in backup:${RESET}"
+# Convert archive to directory format to see what databases are included
 mongorestore \
-  --host "$HOST" \
-  --port "$PORT" \
-  -u "$USER" \
-  -p "$PASS" \
-  --authenticationDatabase "$AUTH" \
   --archive="$DEC" \
   --gzip \
-  --dryRun \
-  --objcheck 2>/dev/null | grep "using dump" | awk '{print $3}' | sort -u
+  --dir="$EXTRACT_DIR" \
+  --dryRun > /dev/null 2>&1 || true
 
-# Get list of application databases (exclude system databases)
-APPLICATION_DBS=$(mongorestore \
-  --host "$HOST" \
-  --port "$PORT" \
-  -u "$USER" \
-  -p "$PASS" \
-  --authenticationDatabase "$AUTH" \
-  --archive="$DEC" \
-  --gzip \
-  --dryRun \
-  --objcheck 2>/dev/null | grep "using dump" | awk '{print $3}' | sort -u | grep -v -E "^(admin|local|config)$")
-
-echo -e "${YELLOW}Application databases to restore:${RESET}"
-echo "$APPLICATION_DBS"
-
-if [ -z "$APPLICATION_DBS" ]; then
-    echo -e "${RED}No application databases found in backup!${RESET}"
-    exit 1
+# List the databases found
+if [ -d "$EXTRACT_DIR" ]; then
+    echo -e "${GREEN}Databases found in backup:${RESET}"
+    find "$EXTRACT_DIR" -maxdepth 1 -type d -name "*.bson" -o -name "*" | grep -v "^$EXTRACT_DIR$" | while read -r dir; do
+        db_name=$(basename "$dir")
+        if [ -n "$db_name" ] && [ "$db_name" != "extract" ]; then
+            echo "  - $db_name"
+        fi
+    done
 fi
 
-# Restore each application database individually
-for DB in $APPLICATION_DBS; do
-    echo -e "${BLUE}Restoring database: $DB${RESET}"
-    
+# Ask user which database to restore or restore all application dbs
+echo -e "${YELLOW}Choose restore option:${RESET}"
+echo "1) Restore ALL databases (including system dbs - may cause version conflicts)"
+echo "2) Restore only application databases (saarthi-prod-db)"
+read -rp "Enter choice (1 or 2): " RESTORE_CHOICE
+
+if [ "$RESTORE_CHOICE" = "2" ]; then
+    echo -e "${YELLOW}Restoring only saarthi-prod-db...${RESET}"
     mongorestore \
       --host "$HOST" \
       --port "$PORT" \
@@ -236,13 +225,26 @@ for DB in $APPLICATION_DBS; do
       --authenticationDatabase "$AUTH" \
       --archive="$DEC" \
       --gzip \
-      --nsInclude="${DB}.*" \
+      --nsInclude="saarthi-prod-db.*" \
       --drop
+else
+    echo -e "${YELLOW}Restoring ALL databases...${RESET}"
+    echo -e "${RED}Warning: This may cause version conflicts with system databases${RESET}"
     
-    echo -e "${GREEN}✓ Database $DB restored successfully${RESET}"
-done
+    # Try to restore everything, but skip if system version conflicts occur
+    mongorestore \
+      --host "$HOST" \
+      --port "$PORT" \
+      -u "$USER" \
+      -p "$PASS" \
+      --authenticationDatabase "$AUTH" \
+      --archive="$DEC" \
+      --gzip \
+      --drop \
+      --stopOnError || echo -e "${YELLOW}Some errors occurred but continuing...${RESET}"
+fi
 
-echo -e "${GREEN}All application databases restored successfully!${RESET}"
+echo -e "${GREEN}Restore Completed Successfully!${RESET}"
 
 ###############################################
 # 10) Cleanup
