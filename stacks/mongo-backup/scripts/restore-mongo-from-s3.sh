@@ -156,8 +156,34 @@ read -rp "Auth DB (default: admin): " AUTH
 ###############################################
 # 9) Restore
 ###############################################
-echo -e "${BLUE}Restoring into ${HOST}:${PORT}${RESET}"
 
+echo -e "${BLUE}Restoring into ${HOST}:${PORT} with version handling...${RESET}"
+
+# Clean system collections that cause version conflicts
+echo -e "${YELLOW}Cleaning system version data to prevent conflicts...${RESET}"
+
+mongosh --quiet \
+  --host "$HOST" \
+  --port "$PORT" \
+  -u "$USER" \
+  -p "$PASS" \
+  --authenticationDatabase "$AUTH" \
+  --eval "
+  try { 
+    db.getSiblingDB('admin').system.version.drop(); 
+    print('✓ Dropped admin.system.version');
+  } catch(e) { 
+    print('Note: Could not drop admin.system.version:', e.message); 
+  }
+  try { 
+    db.getSiblingDB('admin').system.sessions.drop();
+    print('✓ Dropped admin.system.sessions');
+  } catch(e) { 
+    print('Note: Could not drop admin.system.sessions'); 
+  }
+  "
+
+# Now perform the restore
 mongorestore \
   --host "$HOST" \
   --port "$PORT" \
@@ -167,7 +193,6 @@ mongorestore \
   --archive="$DEC" \
   --gzip \
   --drop
-
 echo -e "${GREEN}Restore Completed Successfully.${RESET}"
 
 

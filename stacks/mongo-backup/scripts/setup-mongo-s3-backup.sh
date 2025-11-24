@@ -35,12 +35,12 @@ if ! command -v mongodump >/dev/null 2>&1; then
   echo -e "${YELLOW}Installing MongoDB Database Tools (manual .deb)...${RESET}"
 
   TMP_DEB="/tmp/mongodb-tools.deb"
+
   
   wget -qO "$TMP_DEB" \
     "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.13.0.deb"
 
-  # FIX: Use dpkg instead of apt install for .deb files
-  sudo dpkg -i "$TMP_DEB" || sudo apt-get install -f -y
+  sudo apt install -y "$TMP_DEB"
   rm -f "$TMP_DEB"
 
   if command -v mongodump >/dev/null 2>&1; then
@@ -197,33 +197,17 @@ echo "=== Mongo Backup Started: PORT=$MONGO_PORT MODE=$MODE TIME=$TIMESTAMP ==="
 DUMP_FILE="${TMP_DIR}/mongo-${MONGO_PORT}-${MODE}-${TIMESTAMP}.archive.gz"
 ENC_FILE="${DUMP_FILE}.gpg"
 
-echo "--- Dumping MongoDB port ${MONGO_PORT} ---"
-# Get only application databases (exclude system databases)
-APPLICATION_DBS=$(mongo --host "$MONGO_HOST" --port "$MONGO_PORT" -u "$MONGO_USER" -p "$MONGO_PASS" --authenticationDatabase "$MONGO_AUTHDB" --quiet --eval "db.getMongo().getDBNames().forEach(function(db){ if (['admin','config','local'].indexOf(db) == -1) print(db) })")
+echo "--- Dumping ALL databases from MongoDB port ${MONGO_PORT} ---"
+mongodump \
+  --host "$MONGO_HOST" \
+  --port "$MONGO_PORT" \
+  -u "$MONGO_USER" \
+  -p "$MONGO_PASS" \
+  --authenticationDatabase "$MONGO_AUTHDB" \
+  --gzip \
+  --archive="$DUMP_FILE"
+  # REMOVED ALL --nsExclude flags - backup everything!
 
-if [ -z "$APPLICATION_DBS" ]; then
-  echo "No application databases found!"
-  exit 1
-fi
-
-echo "Backing up application databases: $APPLICATION_DBS"
-
-# Start with empty archive
-> "$DUMP_FILE"
-
-# Backup each application database individually
-for DB in $APPLICATION_DBS; do
-  echo "Backing up database: $DB"
-  mongodump \
-    --host "$MONGO_HOST" \
-    --port "$MONGO_PORT" \
-    -u "$MONGO_USER" \
-    -p "$MONGO_PASS" \
-    --authenticationDatabase "$MONGO_AUTHDB" \
-    --db "$DB" \
-    --gzip \
-    --archive="$DUMP_FILE" --append
-done
 
 echo "--- Encrypting dump ---"
 gpg --batch --yes --passphrase "$ENCRYPTION_PASSPHRASE" -c "$DUMP_FILE"
