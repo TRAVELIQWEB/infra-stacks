@@ -198,19 +198,32 @@ DUMP_FILE="${TMP_DIR}/mongo-${MONGO_PORT}-${MODE}-${TIMESTAMP}.archive.gz"
 ENC_FILE="${DUMP_FILE}.gpg"
 
 echo "--- Dumping MongoDB port ${MONGO_PORT} ---"
-mongodump \
-  --host "$MONGO_HOST" \
-  --port "$MONGO_PORT" \
-  -u "$MONGO_USER" \
-  -p "$MONGO_PASS" \
-  --authenticationDatabase "$MONGO_AUTHDB" \
-  --gzip \
-  --archive="$DUMP_FILE" \
-  --excludeCollection=system.users \
-  --excludeCollection=system.roles \
-  --excludeCollection=system.version \
-  --excludeCollection=system.sessions
+# Get only application databases (exclude system databases)
+APPLICATION_DBS=$(mongo --host "$MONGO_HOST" --port "$MONGO_PORT" -u "$MONGO_USER" -p "$MONGO_PASS" --authenticationDatabase "$MONGO_AUTHDB" --quiet --eval "db.getMongo().getDBNames().forEach(function(db){ if (['admin','config','local'].indexOf(db) == -1) print(db) })")
 
+if [ -z "$APPLICATION_DBS" ]; then
+  echo "No application databases found!"
+  exit 1
+fi
+
+echo "Backing up application databases: $APPLICATION_DBS"
+
+# Start with empty archive
+> "$DUMP_FILE"
+
+# Backup each application database individually
+for DB in $APPLICATION_DBS; do
+  echo "Backing up database: $DB"
+  mongodump \
+    --host "$MONGO_HOST" \
+    --port "$MONGO_PORT" \
+    -u "$MONGO_USER" \
+    -p "$MONGO_PASS" \
+    --authenticationDatabase "$MONGO_AUTHDB" \
+    --db "$DB" \
+    --gzip \
+    --archive="$DUMP_FILE" --append
+done
 
 echo "--- Encrypting dump ---"
 gpg --batch --yes --passphrase "$ENCRYPTION_PASSPHRASE" -c "$DUMP_FILE"
@@ -257,19 +270,29 @@ EOF
 chmod +x "$RUN_SCRIPT"
 
 ###############################################
-# 5) Create per-port backup runner script
+# 6) Create per-port restore script
 ###############################################
-echo -e "${BLUE}Writing backup runner script: ${RUN_SCRIPT}${RESET}"
+echo -e "${BLUE}Writing restore script: ${RESTORE_SCRIPT}${RESET}"
 
-cat > "$RUN_SCRIPT" <<'EOF'
+cat > "$RESTORE_SCRIPT" <<'EOF'
 #!/usr/bin/env bash
 set -e
+
+BLUE="\e[34m"
+GREEN="\e[32m"
+YELLOW="\e[33m"
+RED="\e[31m"
+RESET="\e[0m"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/backup-config.env"
 
+echo -e "${BLUE}====================================================="
+echo -e "                 MongoDB Restore Script"
+echo -e "=====================================================${RESET}"
+
 if [ ! -f "$CONFIG_FILE" ]; then
-  echo "Config file not found: $CONFIG_FILE"
+  echo -e "${RED}Backup config file not found: $CONFIG_FILE${RESET}"
   exit 1
 fi
 
@@ -280,80 +303,106 @@ export AWS_ACCESS_KEY_ID
 export AWS_SECRET_ACCESS_KEY
 export AWS_DEFAULT_REGION="$S3_REGION"
 
-MODE="${1:-daily}"  # daily | monthly
-
-if [ "$MODE" != "daily" ] && [ "$MODE" != "monthly" ]; then
-  echo "Usage: $0 [daily|monthly]"
+###########################################
+# Pickup Restore Mode (daily or monthly)
+###########################################
+read -rp "Restore type? (daily/monthly): " MODE
+if [[ "$MODE" != "daily" && "$MODE" != "monthly" ]]; then
+  echo -e "${RED}Invalid mode. Choose daily or monthly.${RESET}"
   exit 1
 fi
 
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-SUBFOLDER="$MODE"
+PREFIX="${S3_PREFIX}/${MONGO_PORT}/${MODE}/"
 
+echo -e "${BLUE}Fetching backup list from S3 (s3://${S3_BUCKET}/${PREFIX})...${RESET}"
+
+TMP_LIST="${TMP_DIR}/s3list-${MONGO_PORT}-${MODE}.txt"
 mkdir -p "$TMP_DIR"
 
-echo "=== Mongo Backup Started: PORT=$MONGO_PORT MODE=$MODE TIME=$TIMESTAMP ==="
+aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://${S3_BUCKET}/${PREFIX}" > "$TMP_LIST" 2>/dev/null || true
 
-DUMP_FILE="${TMP_DIR}/mongo-${MONGO_PORT}-${MODE}-${TIMESTAMP}.archive.gz"
-ENC_FILE="${DUMP_FILE}.gpg"
-
-echo "--- Dumping MongoDB port ${MONGO_PORT} ---"
-mongodump \
-  --host "$MONGO_HOST" \
-  --port "$MONGO_PORT" \
-  -u "$MONGO_USER" \
-  -p "$MONGO_PASS" \
-  --authenticationDatabase "$MONGO_AUTHDB" \
-  --gzip \
-  --archive="$DUMP_FILE" \
-  --db admin --excludeCollection=system.users \
-  --db admin --excludeCollection=system.roles \
-  --db admin --excludeCollection=system.version \
-  --db config --excludeCollection=system.sessions
-
-echo "--- Encrypting dump ---"
-gpg --batch --yes --passphrase "$ENCRYPTION_PASSPHRASE" -c "$DUMP_FILE"
-rm -f "$DUMP_FILE"
-
-S3_KEY="${S3_PREFIX}/${MONGO_PORT}/${SUBFOLDER}/mongo-${MONGO_PORT}-${MODE}-${TIMESTAMP}.archive.gz.gpg"
-
-echo "--- Uploading to S3: s3://${S3_BUCKET}/${S3_KEY} ---"
-aws --endpoint-url "$S3_ENDPOINT" s3 cp "$ENC_FILE" "s3://${S3_BUCKET}/${S3_KEY}"
-rm -f "$ENC_FILE"
-
-###############################################
-# Retention Cleanup
-###############################################
-RETENTION=$DAILY_RETENTION
-[ "$MODE" = "monthly" ] && RETENTION=$MONTHLY_RETENTION
-
-echo "=== Retention Cleanup (keep last $RETENTION ${MODE} backups) ==="
-
-PREFIX_PATH="${S3_PREFIX}/${MONGO_PORT}/${SUBFOLDER}/"
-
-OBJECTS=$(aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://${S3_BUCKET}/${PREFIX_PATH}" 2>/dev/null | awk '{print $4}' | sort)
-
-if [ -z "$OBJECTS" ]; then
-  echo "No backups found for ${MONGO_PORT}/${SUBFOLDER}"
-else
-  COUNT=$(echo "$OBJECTS" | wc -l)
-  if [ "$COUNT" -le "$RETENTION" ]; then
-    echo "Backups: ${COUNT}/${RETENTION} → nothing to delete."
-  else
-    DELETE_COUNT=$((COUNT - RETENTION))
-    echo "Backups: ${COUNT}/${RETENTION} → deleting ${DELETE_COUNT} oldest."
-    echo "$OBJECTS" | head -n "$DELETE_COUNT" | while read -r KEY; do
-      [ -z "$KEY" ] && continue
-      echo "Deleting s3://${S3_BUCKET}/${PREFIX_PATH}${KEY}"
-      aws --endpoint-url "$S3_ENDPOINT" s3 rm "s3://${S3_BUCKET}/${PREFIX_PATH}${KEY}"
-    done
-  fi
+if ! [[ -s "$TMP_LIST" ]]; then
+  echo -e "${RED}No backups found in S3 for this port/mode.${RESET}"
+  exit 1
 fi
 
-echo "=== Mongo Backup Completed (PORT=$MONGO_PORT MODE=$MODE) ==="
+echo -e "${GREEN}Available backups:${RESET}"
+nl -w2 -s". " "$TMP_LIST"
+
+###########################################
+# Ask user which backup to restore
+###########################################
+read -rp "Enter file index to restore: " FILE_INDEX
+
+FILE_NAME=$(sed -n "${FILE_INDEX}p" "$TMP_LIST" | awk '{print $4}')
+
+if [[ -z "$FILE_NAME" ]]; then
+  echo -e "${RED}Invalid selection.${RESET}"
+  exit 1
+fi
+
+echo -e "${BLUE}Selected backup: ${FILE_NAME}${RESET}"
+
+###########################################
+# Download backup
+###########################################
+DOWNLOAD_PATH="${TMP_DIR}/${FILE_NAME}"
+
+echo -e "${YELLOW}Downloading backup from S3...${RESET}"
+
+aws --endpoint-url "$S3_ENDPOINT" s3 cp \
+  "s3://${S3_BUCKET}/${PREFIX}${FILE_NAME}" \
+  "$DOWNLOAD_PATH"
+
+###########################################
+# Decrypt backup (keep .gz)
+###########################################
+DECRYPTED="${DOWNLOAD_PATH%.gpg}"   # will still end with .gz
+
+echo -e "${YELLOW}Decrypting backup...${RESET}"
+
+gpg --batch --yes --passphrase "$ENCRYPTION_PASSPHRASE" -d "$DOWNLOAD_PATH" > "$DECRYPTED"
+
+###########################################
+# Ask for Target Mongo host/port/creds
+###########################################
+read -rp "Target Mongo host (default: 127.0.0.1): " TARGET_HOST
+[ -z "$TARGET_HOST" ] && TARGET_HOST="127.0.0.1"
+
+read -rp "Target Mongo port (default: $MONGO_PORT): " TARGET_PORT
+[ -z "$TARGET_PORT" ] && TARGET_PORT="$MONGO_PORT"
+
+read -rp "Target Mongo username: " TARGET_USER
+read -rp "Target Mongo password: " TARGET_PASS
+read -rp "Auth DB (default: admin): " TARGET_AUTHDB
+[ -z "$TARGET_AUTHDB" ] && TARGET_AUTHDB="admin"
+
+###########################################
+# Restore into Target Mongo
+###########################################
+echo -e "${BLUE}Restoring into MongoDB ${TARGET_HOST}:${TARGET_PORT} ...${RESET}"
+
+mongorestore \
+  --host "$TARGET_HOST" \
+  --port "$TARGET_PORT" \
+  -u "$TARGET_USER" \
+  -p "$TARGET_PASS" \
+  --authenticationDatabase "$TARGET_AUTHDB" \
+  --archive="$DECRYPTED" \
+  --gzip \
+  --drop
+
+echo -e "${GREEN}Restore completed successfully!${RESET}"
+
+###########################################
+# Cleanup temp files
+###########################################
+rm -f "$DOWNLOAD_PATH" "$DECRYPTED" "$TMP_LIST"
+
+echo -e "${BLUE}Temporary files cleaned.${RESET}"
 EOF
 
-chmod +x "$RUN_SCRIPT"
+chmod +x "$RESTORE_SCRIPT"
 
 ###############################################
 # 7) Setup cron jobs (PER PORT — SAFE VERSION)
