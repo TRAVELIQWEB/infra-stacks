@@ -198,7 +198,7 @@ DUMP_FILE="${TMP_DIR}/mongo-${MONGO_PORT}-${MODE}-${TIMESTAMP}.archive.gz"
 ENC_FILE="${DUMP_FILE}.gpg"
 
 echo "--- Dumping MongoDB port ${MONGO_PORT} ---"
-/usr/bin/mongodump \
+/usr/lib/mongodb-database-tools/bin/mongodump \
   --host "$MONGO_HOST" \
   --port "$MONGO_PORT" \
   -u "$MONGO_USER" \
