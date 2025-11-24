@@ -198,7 +198,7 @@ DUMP_FILE="${TMP_DIR}/mongo-${MONGO_PORT}-${MODE}-${TIMESTAMP}.archive.gz"
 ENC_FILE="${DUMP_FILE}.gpg"
 
 echo "--- Dumping MongoDB port ${MONGO_PORT} ---"
-/usr/lib/mongodb-database-tools/bin/mongodump \
+mongodump \
   --host "$MONGO_HOST" \
   --port "$MONGO_PORT" \
   -u "$MONGO_USER" \
@@ -206,12 +206,11 @@ echo "--- Dumping MongoDB port ${MONGO_PORT} ---"
   --authenticationDatabase "$MONGO_AUTHDB" \
   --gzip \
   --archive="$DUMP_FILE" \
-  --nsExclude admin.system.version \
-  --nsExclude admin.system.users \
-  --nsExclude admin.system.roles \
-  --nsExclude config.system.sessions \
-  --nsExclude local.*
-
+  --nsExclude "admin.system.users" \
+  --nsExclude "admin.system.roles" \
+  --nsExclude "admin.system.version" \
+  --nsExclude "config.system.sessions" \
+  --nsExclude "local.*"
 
 
 echo "--- Encrypting dump ---"
