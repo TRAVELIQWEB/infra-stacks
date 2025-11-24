@@ -24,6 +24,13 @@ else
     NEED_MONGO_TOOLS=false
 fi
 
+# Check for mongosh
+if ! command -v mongosh >/dev/null 2>&1; then
+    NEED_MONGOSH=true
+else
+    NEED_MONGOSH=false
+fi
+
 if [ ${#NEED_INSTALL[@]} -gt 0 ]; then
     echo -e "${YELLOW}Installing missing packages: ${NEED_INSTALL[*]}${RESET}"
     sudo apt update -y
@@ -46,6 +53,25 @@ if [ "$NEED_MONGO_TOOLS" = true ]; then
         echo -e "${RED}Mongo tools installation failed!${RESET}"
         exit 1
     fi
+fi
+
+if [ "$NEED_MONGOSH" = true ]; then
+    echo -e "${YELLOW}Installing MongoDB Shell (mongosh)...${RESET}"
+    
+    # Install MongoDB Shell
+    curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
+    echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+    sudo apt update
+    sudo apt install -y mongodb-mongosh
+    
+    if command -v mongosh >/dev/null 2>&1; then
+        echo -e "${GREEN}MongoDB Shell installed successfully.${RESET}"
+    else
+        echo -e "${RED}MongoDB Shell installation failed!${RESET}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}MongoDB Shell already installed.${RESET}"
 fi
 
 echo -e "${GREEN}All required tools installed.${RESET}"
@@ -154,9 +180,8 @@ read -rp "Auth DB (default: admin): " AUTH
 
 
 ###############################################
-# 9) Restore
+# 9) Restore with Version Handling
 ###############################################
-
 echo -e "${BLUE}Restoring into ${HOST}:${PORT} with version handling...${RESET}"
 
 # Clean system collections that cause version conflicts
@@ -193,6 +218,7 @@ mongorestore \
   --archive="$DEC" \
   --gzip \
   --drop
+
 echo -e "${GREEN}Restore Completed Successfully.${RESET}"
 
 
