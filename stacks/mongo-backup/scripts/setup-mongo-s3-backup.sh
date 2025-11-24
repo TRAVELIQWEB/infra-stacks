@@ -36,8 +36,9 @@ if ! command -v mongodump >/dev/null 2>&1; then
 
   TMP_DEB="/tmp/mongodb-tools.deb"
 
+  
   wget -qO "$TMP_DEB" \
-    "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.9.4.deb"
+    "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.12.2.deb"
 
   sudo apt install -y "$TMP_DEB"
   rm -f "$TMP_DEB"
@@ -204,7 +205,13 @@ mongodump \
   -p "$MONGO_PASS" \
   --authenticationDatabase "$MONGO_AUTHDB" \
   --gzip \
-  --archive="$DUMP_FILE"
+  --archive="$DUMP_FILE" \
+  --nsExclude="admin.system.version" \
+  --nsExclude="admin.system.users" \
+  --nsExclude="admin.system.roles" \
+  --nsExclude="config.system.sessions" \
+  --nsExclude="local.*"
+
 
 echo "--- Encrypting dump ---"
 gpg --batch --yes --passphrase "$ENCRYPTION_PASSPHRASE" -c "$DUMP_FILE"
