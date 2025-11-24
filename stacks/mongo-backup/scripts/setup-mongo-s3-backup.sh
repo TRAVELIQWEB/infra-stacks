@@ -408,12 +408,8 @@ TEMP_CRON="/tmp/cron-${MONGO_PORT}-$$"
 crontab -l 2>/dev/null | grep -v "$CRON_CMD" > "$TEMP_CRON" || true
 
 # Append NEW cron entries (daily & monthly)
-# echo "30 2 * * * $CRON_CMD daily >> /var/log/mongo-backup-${MONGO_PORT}-daily.log 2>&1" >> "$TEMP_CRON"
-# echo "0 3 1 * * $CRON_CMD monthly >> /var/log/mongo-backup-${MONGO_PORT}-monthly.log 2>&1" >> "$TEMP_CRON"
-
-# Append NEW cron entries (1-minute test for both daily & monthly)
-echo "* * * * * $CRON_CMD daily >> /var/log/mongo-backup-${MONGO_PORT}-daily.log 2>&1" >> "$TEMP_CRON"
-echo "* * * * * $CRON_CMD monthly >> /var/log/mongo-backup-${MONGO_PORT}-monthly.log 2>&1" >> "$TEMP_CRON"
+echo "30 2 * * * $CRON_CMD daily >> /var/log/mongo-backup-${MONGO_PORT}-daily.log 2>&1" >> "$TEMP_CRON"
+echo "0 3 1 * * $CRON_CMD monthly >> /var/log/mongo-backup-${MONGO_PORT}-monthly.log 2>&1" >> "$TEMP_CRON"
 
 # Validate before applying
 if ! crontab "$TEMP_CRON"; then
@@ -429,18 +425,28 @@ fi
 rm -f "$TEMP_CRON"
 
 echo -e "${GREEN}Cron jobs installed successfully for port ${MONGO_PORT}.${RESET}"
-# echo "Daily:    02:30 → $CRON_CMD daily"
-# echo "Monthly:  03:00 → $CRON_CMD monthly"
-# echo ""
-# echo "To test manually:"
-# echo "  $CRON_CMD daily"
-# echo "  $CRON_CMD monthly"
-# echo ""
-# echo -e "${GREEN}Setup complete for Mongo port ${MONGO_PORT}!${RESET}"
+echo "Daily:    02:30 → $CRON_CMD daily"
+echo "Monthly:  03:00 → $CRON_CMD monthly"
 
-echo "Daily:    * * * * * → $CRON_CMD daily (every minute - for testing)"
-echo "Monthly:  * * * * * → $CRON_CMD monthly (every minute - for testing)"
+###############################################
+# 8) Create log files with proper permissions
+###############################################
+echo -e "${BLUE}Creating log files with proper permissions...${RESET}"
+
+DAILY_LOG="/var/log/mongo-backup-${MONGO_PORT}-daily.log"
+MONTHLY_LOG="/var/log/mongo-backup-${MONGO_PORT}-monthly.log"
+
+# Create log files if they don't exist
+sudo touch "$DAILY_LOG" "$MONTHLY_LOG"
+sudo chown "$(whoami)":"$(whoami)" "$DAILY_LOG" "$MONTHLY_LOG"
+sudo chmod 644 "$DAILY_LOG" "$MONTHLY_LOG"
+
+echo -e "${GREEN}Log files created:${RESET}"
+echo "  - $DAILY_LOG"
+echo "  - $MONTHLY_LOG"
 echo ""
-echo -e "${YELLOW}TEST MODE: Both daily and monthly backups will run every minute${RESET}"
-echo -e "${YELLOW}To monitor: tail -f /var/log/mongo-backup-${MONGO_PORT}-daily.log${RESET}"
-echo -e "${YELLOW}To restore original schedule later: edit crontab -e${RESET}"
+echo "To test manually:"
+echo "  $CRON_CMD daily"
+echo "  $CRON_CMD monthly"
+echo ""
+echo -e "${GREEN}Setup complete for Mongo port ${MONGO_PORT}!${RESET}"
