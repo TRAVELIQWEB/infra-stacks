@@ -206,11 +206,12 @@ mongodump \
   --authenticationDatabase "$MONGO_AUTHDB" \
   --gzip \
   --archive="$DUMP_FILE" \
-  --nsExclude="admin.system.version" \
-  --nsExclude="admin.system.users" \
-  --nsExclude="admin.system.roles" \
-  --nsExclude="config.system.sessions" \
-  --nsExclude="local.*"
+  --nsExclude admin.system.version \
+  --nsExclude admin.system.users \
+  --nsExclude admin.system.roles \
+  --nsExclude config.system.sessions \
+  --nsExclude local.*
+
 
 
 echo "--- Encrypting dump ---"
