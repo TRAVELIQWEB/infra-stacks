@@ -38,7 +38,7 @@ if ! command -v mongodump >/dev/null 2>&1; then
 
   
   wget -qO "$TMP_DEB" \
-    "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.12.2.deb"
+    "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.13.0.deb"
 
   sudo apt install -y "$TMP_DEB"
   rm -f "$TMP_DEB"
@@ -198,7 +198,7 @@ DUMP_FILE="${TMP_DIR}/mongo-${MONGO_PORT}-${MODE}-${TIMESTAMP}.archive.gz"
 ENC_FILE="${DUMP_FILE}.gpg"
 
 echo "--- Dumping MongoDB port ${MONGO_PORT} ---"
-mongodump \
+/usr/bin/mongodump \
   --host "$MONGO_HOST" \
   --port "$MONGO_PORT" \
   -u "$MONGO_USER" \
