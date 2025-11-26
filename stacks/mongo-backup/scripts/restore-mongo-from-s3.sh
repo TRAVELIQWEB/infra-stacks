@@ -44,7 +44,7 @@ if [ "$NEED_MONGO_TOOLS" = true ]; then
 
     TMP_DEB="/tmp/mongodb-tools.deb"
     wget -qO "$TMP_DEB" \
-      "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.9.4.deb"
+      "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.13.0.deb"
 
     sudo apt install -y "$TMP_DEB"
     rm -f "$TMP_DEB"
@@ -53,12 +53,14 @@ if [ "$NEED_MONGO_TOOLS" = true ]; then
         echo -e "${RED}Mongo tools installation failed!${RESET}"
         exit 1
     fi
+else
+    echo -e "${GREEN}MongoDB Tools already installed.${RESET}"
 fi
 
 if [ "$NEED_MONGOSH" = true ]; then
     echo -e "${YELLOW}Installing MongoDB Shell (mongosh)...${RESET}"
     
-    # Install MongoDB Shell
+    # Install MongoDB Shell (7.0 repo – works fine just for client)
     curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
     echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
     sudo apt update
@@ -76,14 +78,15 @@ fi
 
 echo -e "${GREEN}All required tools installed.${RESET}"
 
+
 ###############################################
-# 1) Ask Mongo Port
+# 1) Ask Mongo Port (used in S3 path only)
 ###############################################
-read -rp "Enter Mongo Port for restore (e.g., 27017, 27019): " MONGO_PORT
+read -rp "Enter Mongo Port used in backup path (e.g., 27017, 27019): " MONGO_PORT
 
 
 ###############################################
-# 2) Ask S3 Details
+# 2) Ask S3 / Zata Details
 ###############################################
 echo -e "\n${BLUE}--- S3 / Zata Settings ---${RESET}"
 
@@ -91,7 +94,7 @@ read -rp "S3 Endpoint (default: https://s3.zata.cloud): " S3_ENDPOINT
 [ -z "$S3_ENDPOINT" ] && S3_ENDPOINT="https://s3.zata.cloud"
 
 read -rp "S3 Bucket Name: " S3_BUCKET
-read -rp "S3 Prefix (wallet/fwms/rail/...): " S3_PREFIX
+read -rp "S3 Prefix (wallet/fwms/rail/dev/prod/...): " S3_PREFIX
 
 read -rp "S3 Region (default: ap-south-1): " S3_REGION
 [ -z "$S3_REGION" ] && S3_REGION="ap-south-1"
@@ -113,11 +116,14 @@ read -rp "Encryption Passphrase: " ENC_PASS
 # 4) Restore Type
 ###############################################
 read -rp "Restore type? (daily/monthly): " MODE
-[[ "$MODE" != "daily" && "$MODE" != "monthly" ]] && { echo -e "${RED}Invalid mode${RESET}"; exit 1; }
+if [[ "$MODE" != "daily" && "$MODE" != "monthly" ]]; then
+    echo -e "${RED}Invalid mode. Use 'daily' or 'monthly'.${RESET}"
+    exit 1
+fi
 
 
 ###############################################
-# 5) List Backups
+# 5) List Backups in S3
 ###############################################
 PREFIX="${S3_PREFIX}/${MONGO_PORT}/${MODE}/"
 
@@ -126,27 +132,30 @@ mkdir -p "$TMP_DIR"
 
 TMP_LIST="$TMP_DIR/list.txt"
 
-echo -e "${BLUE}Fetching: s3://${S3_BUCKET}/${PREFIX}${RESET}"
-aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://${S3_BUCKET}/${PREFIX}" > "$TMP_LIST" || true
+echo -e "${BLUE}Fetching backups from: s3://${S3_BUCKET}/${PREFIX}${RESET}"
+aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://${S3_BUCKET}/${PREFIX}" > "$TMP_LIST" 2>/dev/null || true
 
 if ! [[ -s "$TMP_LIST" ]]; then
-  echo -e "${RED}No backups found.${RESET}"
+  echo -e "${RED}No backups found at s3://${S3_BUCKET}/${PREFIX}${RESET}"
   exit 1
 fi
 
-echo -e "${GREEN}Backups:${RESET}"
+echo -e "${GREEN}Available backups:${RESET}"
 nl -w2 -s". " "$TMP_LIST"
 
 
 ###############################################
 # 6) Select Backup
 ###############################################
-read -rp "Enter backup index: " N
+read -rp "Enter backup index to restore: " N
 FILE=$(sed -n "${N}p" "$TMP_LIST" | awk '{print $4}')
 
-[ -z "$FILE" ] && { echo -e "${RED}Invalid selection${RESET}"; exit 1; }
+if [ -z "$FILE" ]; then
+    echo -e "${RED}Invalid selection.${RESET}"
+    exit 1
+fi
 
-echo -e "${BLUE}Selected: $FILE${RESET}"
+echo -e "${BLUE}Selected backup file: $FILE${RESET}"
 
 
 ###############################################
@@ -155,17 +164,24 @@ echo -e "${BLUE}Selected: $FILE${RESET}"
 DL="${TMP_DIR}/${FILE}"
 DEC="${DL%.gpg}"
 
-echo -e "${YELLOW}Downloading...${RESET}"
+echo -e "${YELLOW}Downloading backup from S3...${RESET}"
 aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://${S3_BUCKET}/${PREFIX}${FILE}" "$DL"
 
-echo -e "${YELLOW}Decrypting...${RESET}"
+echo -e "${YELLOW}Decrypting backup (creating .archive.gz)...${RESET}"
 gpg --batch --yes --passphrase "$ENC_PASS" -d "$DL" > "$DEC"
+
+if [ ! -s "$DEC" ]; then
+    echo -e "${RED}Decryption failed or produced empty file.${RESET}"
+    exit 1
+fi
+
+echo -e "${GREEN}Decrypted archive: $DEC${RESET}"
 
 
 ###############################################
 # 8) Target Mongo Info
 ###############################################
-echo -e "\n${BLUE}--- TARGET MongoDB ---${RESET}"
+echo -e "\n${BLUE}--- TARGET MongoDB (where data will be restored) ---${RESET}"
 
 read -rp "Target Host (default: 127.0.0.1): " HOST
 [ -z "$HOST" ] && HOST="127.0.0.1"
@@ -180,74 +196,47 @@ read -rp "Auth DB (default: admin): " AUTH
 
 
 ###############################################
-# 9) Restore - Simple Approach
+# 9) Restore ALL DBs from archive
 ###############################################
-echo -e "${BLUE}Restoring into ${HOST}:${PORT}...${RESET}"
+echo -e "\n${YELLOW}By default, system databases (admin, local, config) will be SKIPPED."
+echo -e "This avoids version / user / role conflicts on new clusters.${RESET}"
+read -rp "Do you ALSO want to restore system DBs? (y/N): " INCLUDE_SYSTEM
+INCLUDE_SYSTEM=$(echo "$INCLUDE_SYSTEM" | tr '[:upper:]' '[:lower:]')
 
-# First, let's check what's in the backup by extracting it temporarily
-echo -e "${YELLOW}Checking backup contents...${RESET}"
+echo -e "\n${BLUE}Restoring ALL databases present in backup archive...${RESET}"
+echo -e "${YELLOW}Target: mongodb://${HOST}:${PORT}${RESET}"
 
-# Extract to directory format to see databases
-EXTRACT_DIR="${TMP_DIR}/extract"
-mkdir -p "$EXTRACT_DIR"
+RESTORE_CMD=(
+  mongorestore
+  --host "$HOST"
+  --port "$PORT"
+  -u "$USER"
+  -p "$PASS"
+  --authenticationDatabase "$AUTH"
+  --archive="$DEC"
+  --gzip
+  --drop
+)
 
-# Convert archive to directory format to see what databases are included
-mongorestore \
-  --archive="$DEC" \
-  --gzip \
-  --dir="$EXTRACT_DIR" \
-  --dryRun > /dev/null 2>&1 || true
-
-# List the databases found
-if [ -d "$EXTRACT_DIR" ]; then
-    echo -e "${GREEN}Databases found in backup:${RESET}"
-    find "$EXTRACT_DIR" -maxdepth 1 -type d -name "*.bson" -o -name "*" | grep -v "^$EXTRACT_DIR$" | while read -r dir; do
-        db_name=$(basename "$dir")
-        if [ -n "$db_name" ] && [ "$db_name" != "extract" ]; then
-            echo "  - $db_name"
-        fi
-    done
-fi
-
-# Ask user which database to restore or restore all application dbs
-echo -e "${YELLOW}Choose restore option:${RESET}"
-echo "1) Restore ALL databases (including system dbs - may cause version conflicts)"
-echo "2) Restore only application databases (saarthi-prod-db)"
-read -rp "Enter choice (1 or 2): " RESTORE_CHOICE
-
-if [ "$RESTORE_CHOICE" = "2" ]; then
-    echo -e "${YELLOW}Restoring only saarthi-prod-db...${RESET}"
-    mongorestore \
-      --host "$HOST" \
-      --port "$PORT" \
-      -u "$USER" \
-      -p "$PASS" \
-      --authenticationDatabase "$AUTH" \
-      --archive="$DEC" \
-      --gzip \
-      --nsInclude="saarthi-prod-db.*" \
-      --drop
+if [[ "$INCLUDE_SYSTEM" != "y" && "$INCLUDE_SYSTEM" != "yes" ]]; then
+    echo -e "${GREEN}System DBs will be skipped (admin/local/config).${RESET}"
+    RESTORE_CMD+=( --nsExclude="admin.*" --nsExclude="local.*" --nsExclude="config.*" )
 else
-    echo -e "${YELLOW}Restoring ALL databases...${RESET}"
-    echo -e "${RED}Warning: This may cause version conflicts with system databases${RESET}"
-    
-    # Try to restore everything, but skip if system version conflicts occur
-    mongorestore \
-      --host "$HOST" \
-      --port "$PORT" \
-      -u "$USER" \
-      -p "$PASS" \
-      --authenticationDatabase "$AUTH" \
-      --archive="$DEC" \
-      --gzip \
-      --drop \
-      --stopOnError || echo -e "${YELLOW}Some errors occurred but continuing...${RESET}"
+    echo -e "${RED}WARNING: Restoring system DBs may cause version/user/role conflicts!${RESET}"
+    echo -e "${YELLOW}Proceeding with FULL restore including admin/local/config...${RESET}"
 fi
 
-echo -e "${GREEN}Restore Completed Successfully!${RESET}"
+echo -e "${YELLOW}Running mongorestore...${RESET}"
+"${RESTORE_CMD[@]}" || {
+    echo -e "${RED}mongorestore finished with errors. Check logs above.${RESET}"
+}
+
+echo -e "${GREEN}Restore process completed (with or without errors reported above).${RESET}"
+
 
 ###############################################
 # 10) Cleanup
 ###############################################
+echo -e "${BLUE}Cleaning up temporary files...${RESET}"
 rm -rf "$TMP_DIR"
-echo -e "${BLUE}Temporary files cleaned.${RESET}"
+echo -e "${GREEN}Temporary files cleaned.${RESET}"
