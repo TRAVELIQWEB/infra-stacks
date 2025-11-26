@@ -38,3 +38,9 @@ slave-announce-port ${HOST_PORT}
 ###############################################
 # setup-instance.sh will append:
 # replicaof <master_ip> <master_port>
+
+
+###############################################
+# Redis Stack JSON module (required for JSON.SET/GET)
+###############################################
+loadmodule /opt/redis-stack/lib/modules/rejson.so

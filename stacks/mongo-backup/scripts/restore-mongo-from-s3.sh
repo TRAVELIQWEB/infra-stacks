@@ -4,7 +4,8 @@ set -e
 BLUE="\e[34m"; GREEN="\e[32m"; YELLOW="\e[33m"; RED="\e[31m"; RESET="\e[0m"
 
 echo -e "${BLUE}====================================================="
-echo -e "             Standalone MongoDB Restore Script"
+echo -e "             MongoDB Restore from S3 (Full)"
+echo -e "       Data + Indexes in a single mongorestore"
 echo -e "=====================================================${RESET}"
 
 
@@ -59,13 +60,13 @@ fi
 
 if [ "$NEED_MONGOSH" = true ]; then
     echo -e "${YELLOW}Installing MongoDB Shell (mongosh)...${RESET}"
-    
-    # Install MongoDB Shell (7.0 repo – works fine just for client)
+
+    # Install MongoDB Shell (7.0 repo – client only)
     curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
-    echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+    echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org-7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
     sudo apt update
     sudo apt install -y mongodb-mongosh
-    
+
     if command -v mongosh >/dev/null 2>&1; then
         echo -e "${GREEN}MongoDB Shell installed successfully.${RESET}"
     else
@@ -196,15 +197,27 @@ read -rp "Auth DB (default: admin): " AUTH
 
 
 ###############################################
-# 9) Restore ALL DBs from archive
+# 9) Ask about system DBs (admin/local/config)
 ###############################################
 echo -e "\n${YELLOW}By default, system databases (admin, local, config) will be SKIPPED."
 echo -e "This avoids version / user / role conflicts on new clusters.${RESET}"
 read -rp "Do you ALSO want to restore system DBs? (y/N): " INCLUDE_SYSTEM
 INCLUDE_SYSTEM=$(echo "$INCLUDE_SYSTEM" | tr '[:upper:]' '[:lower:]')
 
-echo -e "\n${BLUE}Restoring ALL databases present in backup archive...${RESET}"
-echo -e "${YELLOW}Target: mongodb://${HOST}:${PORT}${RESET}"
+NS_EXCLUDES=()
+if [[ "$INCLUDE_SYSTEM" != "y" && "$INCLUDE_SYSTEM" != "yes" ]]; then
+    echo -e "${GREEN}System DBs will be skipped (admin/local/config).${RESET}"
+    NS_EXCLUDES+=( --nsExclude="admin.*" --nsExclude="local.*" --nsExclude="config.*" )
+else
+    echo -e "${RED}WARNING: Restoring system DBs may cause version/user/role conflicts!${RESET}"
+    echo -e "${YELLOW}Proceeding with FULL restore including admin/local/config...${RESET}"
+fi
+
+
+###############################################
+# 10) Single-pass mongorestore (data + indexes)
+###############################################
+echo -e "\n${BLUE}==== Running mongorestore (DATA + INDEXES) ==== ${RESET}"
 
 RESTORE_CMD=(
   mongorestore
@@ -216,26 +229,21 @@ RESTORE_CMD=(
   --archive="$DEC"
   --gzip
   --drop
+  "${NS_EXCLUDES[@]}"
 )
 
-if [[ "$INCLUDE_SYSTEM" != "y" && "$INCLUDE_SYSTEM" != "yes" ]]; then
-    echo -e "${GREEN}System DBs will be skipped (admin/local/config).${RESET}"
-    RESTORE_CMD+=( --nsExclude="admin.*" --nsExclude="local.*" --nsExclude="config.*" )
-else
-    echo -e "${RED}WARNING: Restoring system DBs may cause version/user/role conflicts!${RESET}"
-    echo -e "${YELLOW}Proceeding with FULL restore including admin/local/config...${RESET}"
-fi
+echo -e "${YELLOW}Command:${RESET} ${RESTORE_CMD[*]}"
 
-echo -e "${YELLOW}Running mongorestore...${RESET}"
-"${RESTORE_CMD[@]}" || {
+# shellcheck disable=SC2068
+${RESTORE_CMD[@]} || {
     echo -e "${RED}mongorestore finished with errors. Check logs above.${RESET}"
 }
 
-echo -e "${GREEN}Restore process completed (with or without errors reported above).${RESET}"
+echo -e "${GREEN}Restore process completed (mongorestore exited).${RESET}"
 
 
 ###############################################
-# 10) Cleanup
+# 11) Cleanup
 ###############################################
 echo -e "${BLUE}Cleaning up temporary files...${RESET}"
 rm -rf "$TMP_DIR"
