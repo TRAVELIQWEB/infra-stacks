@@ -16,6 +16,9 @@ APP_NAME=$(ask "Enter app name (example: wallet-frontend, air-api):")
 ENVIRONMENT=$(ask "Enter environment (dev/staging/prod):")
 SERVER_FOLDER=$(ask "Enter server folder path (example: /opt/apps OR /var/www/apps):")
 
+# NEW: Ask for port
+EXTERNAL_PORT=$(ask "Enter external port for this app (example: 6002):")
+
 ###############################################
 # SAFE DEFAULT SERVER PATH IF BLANK
 ###############################################
@@ -34,7 +37,7 @@ info "Setting up application at: $APP_ROOT"
 docker_checks
 
 ###############################################
-# 2. CREATE GLOBAL NETWORK (shared across apps)
+# 2. CREATE GLOBAL DOCKER NETWORK
 ###############################################
 if ! docker network ls | grep -q "saarthi-net"; then
   info "Creating global Docker network 'saarthi-net'"
@@ -78,9 +81,14 @@ services:
     env_file:
       - $SECRET_FILE
     ports:
-      - "0:3000"   # CHANGE THIS PORT AS NEEDED
+      - "${EXTERNAL_PORT}:3000"
     networks:
       - saarthi-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 networks:
   saarthi-net:
@@ -102,7 +110,7 @@ cd \$(dirname "\$0")
 
 docker pull ghcr.io/TRAVELIQWEB/${APP_NAME}:${ENVIRONMENT}
 
-docker compose down
+docker compose down --remove-orphans
 docker compose up -d
 
 echo "✅ Deployment completed for ${APP_NAME} (${ENVIRONMENT})"
@@ -118,5 +126,6 @@ success "Application setup complete!"
 echo ""
 echo "📌 App root folder: $APP_ROOT"
 echo "📌 Secrets file: $SECRET_FILE"
+echo "📌 External Port: ${EXTERNAL_PORT}"
 echo "📌 Deployment: $APP_ROOT/deploy.sh"
-echo "👉 Update docker-compose.yml to set correct port (6010:3000 etc.)"
+echo "👉 docker-compose.yml already includes correct port (${EXTERNAL_PORT}:3000)"
