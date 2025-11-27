@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 set -e
 
-echo "🚀 Deploying Wallet Frontend (DEV)..."
+APP_NAME="wallet-frontend"
+ENVIRONMENT="dev"
+IMAGE="ghcr.io/TRAVELIQWEB/${APP_NAME}:${ENVIRONMENT}"
 
-# Navigate to compose folder
+echo "🚀 Deploying ${APP_NAME} (${ENVIRONMENT})..."
+
 cd "$(dirname "$0")"
 
-# Pull latest dev image from GHCR
-docker pull ghcr.io/TRAVELIQWEB/wallet-frontend:dev
+echo "📥 Pulling latest image: $IMAGE"
+docker pull "$IMAGE"
 
-# Run compose
-docker compose down
+echo "🧹 Stopping old containers..."
+docker compose down --remove-orphans
+
+echo "📦 Starting new containers..."
 docker compose up -d
 
-echo "✅ Deployment completed for Wallet Frontend (DEV)"
-docker ps | grep wallet-frontend
+echo "✅ Deployment completed for ${APP_NAME} (${ENVIRONMENT})"
+echo "📋 Running containers:"
+docker ps --filter "name=${APP_NAME}" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"

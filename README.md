@@ -77,6 +77,8 @@ Clone:
 ```
 sudo chown -R $USER:$USER /opt
 git clone git@github-infra:TRAVELIQWEB/infra-stacks.git /opt/infra
+sudo chown -R $USER:$USER /opt
+git clone git@github-infra:TRAVELIQWEB/infra-stacks.git /opt/infra
 ```
 
 ---

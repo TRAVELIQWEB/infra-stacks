@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  wallet-frontend:
+    container_name: wallet-frontend-dev
+    image: ghcr.io/TRAVELIQWEB/wallet-frontend:dev
+    restart: always
+    env_file:
+      - /var/www/apps/dev/secrets/wallet-frontend.env
+    ports:
+      - "6002:3000"   # external:internal
+    networks:
+      - saarthi-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  saarthi-net:
+    external: true
