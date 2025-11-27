@@ -76,7 +76,7 @@ version: "3.9"
 services:
   ${APP_NAME}:
     container_name: ${APP_NAME}-${ENVIRONMENT}
-    image: ghcr.io/TRAVELIQWEB/${APP_NAME}:${ENVIRONMENT}
+    image: ghcr.io/traveliqweb/${APP_NAME}:${ENVIRONMENT}
     restart: always
     env_file:
       - $SECRET_FILE
@@ -108,7 +108,7 @@ echo "🚀 Deploying ${APP_NAME} (${ENVIRONMENT})"
 
 cd \$(dirname "\$0")
 
-docker pull ghcr.io/TRAVELIQWEB/${APP_NAME}:${ENVIRONMENT}
+docker pull ghcr.io/traveliqweb/${APP_NAME}:${ENVIRONMENT}
 
 docker compose down --remove-orphans
 docker compose up -d
