@@ -67,10 +67,17 @@ cat ~/.ssh/infra-stacks.pub
 ```
 nano ~/.ssh/config
 
+# ===========================
+# infra-stacks (Infra Repo)
+# ===========================
 Host github-infra
-    HostName github.com
+    HostName ssh.github.com
     User git
+    Port 443
     IdentityFile ~/.ssh/infra-stacks
+    IdentitiesOnly yes
+    StrictHostKeyChecking no
+
 ```
 
 Permissions:

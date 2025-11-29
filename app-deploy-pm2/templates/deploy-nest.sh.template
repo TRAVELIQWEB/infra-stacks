@@ -1,0 +1,50 @@
+#!/bin/bash
+set -e
+
+APP_NAME="__APP_NAME__"
+ENV="__ENV__"
+PM2_NAME="__PM2_NAME__"
+PORT="__PORT__"
+
+ROOT="/var/www/apps/$ENV/$APP_NAME"
+TEMP="$ROOT-temp"
+BACKUP="$ROOT-backup"
+
+echo "🚀 Deploying $APP_NAME (NestJS) for $ENV..."
+
+rm -rf "$TEMP"
+mkdir -p "$TEMP"
+
+git clone --branch "$ENV" --depth=1 git@github.com:TRAVELIQWEB/SAARTHI-PORTAL.git "$TEMP"
+
+cp "$ROOT/.env" "$TEMP/apps/$APP_NAME/.env"
+
+cd "$TEMP"
+npm ci --legacy-peer-deps
+
+echo "🏗 Building NestJS..."
+npx nx build $APP_NAME --configuration=production
+
+if [ ! -f "$TEMP/dist/apps/$APP_NAME/main.js" ]; then
+  echo "❌ Build failed!"
+  exit 1
+fi
+
+rm -rf "$BACKUP"
+[ -d "$ROOT" ] && mv "$ROOT" "$BACKUP"
+
+mv "$TEMP" "$ROOT"
+
+echo "🚀 Restarting PM2..."
+pm2 stop "$PM2_NAME" || true
+pm2 delete "$PM2_NAME" || true
+fuser -k $PORT/tcp || true
+sleep 2
+
+pm2 start "node dist/apps/$APP_NAME/main.js" \
+  --name "$PM2_NAME" \
+  --cwd "$ROOT"
+
+nginx -t && systemctl reload nginx
+
+echo "🎉 Deployment Complete!"

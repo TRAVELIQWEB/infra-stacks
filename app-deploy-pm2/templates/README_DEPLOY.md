@@ -1,10 +1,10 @@
 # PM2 Application Deployment System
 ### Deploy Any Next.js / NestJS Application on Any VPS  
-### With Auto-Generated Folders, Deploy Script, Rollback Script & ENV Setup
+### Auto Folders, Deploy Script, Rollback Script, ENV Setup, PM2 Install & GitHub SSH Setup
 
-This module provides a fully-automated deployment system for all your applications using PM2, with support for both Next.js (frontend) and NestJS (backend) projects.
+This system automates deployment of any number of applications (Next.js frontend or NestJS backend) using **PM2**, with automatic environment folders, build flow, rollback and GitHub SSH integration.
 
-It allows you to deploy any number of apps across:
+It supports deployments across:
 
 ```
 /var/www/apps/dev/
@@ -12,71 +12,115 @@ It allows you to deploy any number of apps across:
 /var/www/apps/prod/
 ```
 
-Each app gets isolated environments, its own PM2 process name, its own port, and its own rollback system.
+Each app gets **its own PM2 process**, own port, own folder and automated deployment.
 
 ---
 
-## 🚀 Features
+# 🔐 1. SSH Setup (Required for GitHub Private Repo Access)
 
-✔ Supports **Next.js & NestJS** apps  
-✔ Auto-generates:  
-- deploy.sh  
-- rollback.sh  
-- .env file  
-- folder structure  
+### **1️⃣ Create SSH Key**
+```bash
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
 
-✔ PM2 name based on domain  
-Example:  
-```
-air.saarthii.co.in
-wallet.saarthii.co.in
+ssh-keygen -t ed25519 -C "app-deploy" -f ~/.ssh/app-deploy
+cat ~/.ssh/app-deploy.pub
 ```
 
-✔ Automatic Git Clone → Build → Deploy  
-✔ Automatic backup + rollback  
-✔ Suitable for 20–30 applications  
-✔ Easy migration path to Docker later  
+Add the **public key** to:
+
+✔ GitHub → SSH Keys → Deploy Keys → Allow Read Access
 
 ---
 
-## 📂 Folder Structure Created
+### **2️⃣ SSH Config**
+Create:
+
+```bash
+nano ~/.ssh/config
+```
+
+Add:
 
 ```
-/var/www/apps/
-    dev/
-       wallet-frontend/
-           .env
-           deploy.sh
-           rollback.sh
-    prod/
-       air-backend/
-           .env
-           deploy.sh
-           rollback.sh
+# Repo: SAARTHI-PORTAL (Air/Bus/Wallet/Rail)
+Host saarthi-portal
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/app-deploy
+    IdentitiesOnly yes
+    StrictHostKeyChecking no
+
+# Repo: infra-stacks
+Host infra-stacks
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/infra-stacks
+    IdentitiesOnly yes
+    StrictHostKeyChecking no
+
+# Default fallback
+Host github.com
+    HostName ssh.github.com
+    User git
+    Port 443
+    IdentityFile ~/.ssh/app-deploy
+    IdentitiesOnly yes
+    StrictHostKeyChecking no
+```
+
+Apply permissions:
+
+```bash
+chmod 600 ~/.ssh/config
+chmod 600 ~/.ssh/app-deploy
 ```
 
 ---
 
-## 🛠 Setup Script
+### **3️⃣ Test SSH Access**
+```bash
+ssh -T git@saarthi-portal
+ssh -T git@infra-stacks
+```
 
-Run the setup script:
+---
+
+# 🔧 2. Auto PM2 Install (Handled By deploy.sh)
+
+Your auto-generated `deploy.sh` **automatically installs PM2** if missing:
+
+```bash
+if ! command -v pm2 >/dev/null 2>&1; then
+    echo "PM2 not found. Installing..."
+    sudo npm install -g pm2
+fi
+```
+
+No manual PM2 installation needed.
+
+---
+
+# 🛠 3. Setup Script
+
+Run:
 
 ```bash
 cd app-deploy-pm2/scripts
 ./setup-app.sh
 ```
 
-The script will ask:
+You will be asked:
 
 | Question | Example |
 |---------|---------|
 | App Name | wallet-frontend |
 | Environment | dev / staging / prod |
 | Domain / PM2 Name | wallet.saarthii.co.in |
-| App Type | Next.js or NestJS |
+| App Type | Next.js / NestJS |
 | Port | 6101 |
 
-Generates:
+Generated structure:
 
 ```
 /var/www/apps/dev/wallet-frontend/
@@ -87,23 +131,22 @@ Generates:
 
 ---
 
-## 📜 deploy.sh (auto-generated)
+# 📜 4. deploy.sh (Auto Generated)
 
-Automatically:
+Includes:
 
-- Clones latest branch  
-- Copies `.env`  
-- Runs `npm ci`  
-- Builds via Nx  
-- Validates output  
-- Backs up old version  
-- Deploys new version  
-- Restarts PM2  
-- Reloads Nginx  
+- Git clone / pull  
+- Install dependencies  
+- Build via Nx  
+- Backup old version  
+- Deploy new build  
+- PM2 restart  
+- Nginx reload  
+- PM2 auto-install if missing  
 
 ---
 
-## 🔁 rollback.sh
+# 🔁 5. rollback.sh
 
 Rollback instantly:
 
@@ -112,13 +155,11 @@ cd /var/www/apps/dev/wallet-frontend
 ./rollback.sh
 ```
 
-Restores backup and restarts PM2.
-
 ---
 
-## 🔧 Environment File
+# 🔧 6. Environment File
 
-Generated at:
+Location:
 
 ```
 /var/www/apps/dev/<app>/.env
@@ -131,7 +172,7 @@ NODE_ENV=production
 PORT=6101
 ```
 
-You can add:
+Extend with:
 
 ```
 API_URL=
@@ -141,7 +182,7 @@ REDIS_URI=
 
 ---
 
-## ⚙️ GitHub Actions Integration
+# ⚙️ 7. GitHub Actions Integration
 
 Example workflow:
 
@@ -155,7 +196,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, dev-frontend]
+    runs-on: devdbfrontenddevstaging
 
     steps:
       - uses: actions/checkout@v4
@@ -167,37 +208,35 @@ jobs:
 
 ---
 
-## 🧩 When To Use This System
+# 🧩 When To Use This System
 
 Use PM2 deployment when:
 
-- You run many apps on the same VPS  
-- You want simple, fast deployments  
-- You don’t want Docker overhead  
-- You want auto-build + restart  
-- You want per-environment isolation  
-- You want quick rollback support  
+- Many apps run on same VPS  
+- You need fast deployments  
+- Docker is too heavy  
+- You want rollback support  
+- You want isolated per-environment folders  
 
 ---
 
-## 📌 When To Switch to Docker
+# 📌 When To Switch to Docker
 
-Use `app-deploy-docker/` when:
+Use `app-deploy-docker/` if you want:
 
-- You want container isolation  
-- You want reproducible builds  
-- You want easy scaling  
-- You want to move to Kubernetes later  
+- Containers  
+- Horizontal scaling  
+- Kubernetes later  
+- Environment immutability  
 
 ---
 
-## 🎉 Final Notes
+# 🎉 Final Notes
 
 Your PM2 deployment system is now:
 
 - Fully automated  
-- Cleanly structured  
-- Production safe  
-- Easily scalable  
+- Safe (rollback enabled)  
+- Supports all apps  
+- Works with GitHub runners  
 - Perfect for 20–30 apps  
-

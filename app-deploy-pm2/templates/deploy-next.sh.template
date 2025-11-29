@@ -50,6 +50,5 @@ pm2 start "npx next start dist/apps/$APP_NAME --port=$PORT" \
   --name "$PM2_NAME" \
   --cwd "$ROOT"
 
-nginx -t && systemctl reload nginx
 
 echo "🎉 Deployment Complete!"

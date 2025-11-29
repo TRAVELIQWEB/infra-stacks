@@ -8,7 +8,34 @@ TEMPLATE_DIR="$BASE_DIR/templates"
 echo "🚀 PM2 App Setup Tool"
 
 ###############################################
-# ASK USER INPUTS
+# 0) INSTALL NODE 20 + NPM IF MISSING
+###############################################
+if ! command -v node >/dev/null 2>&1; then
+    echo "⚠️ Node.js not found. Installing Node.js 20 + npm..."
+
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    sudo apt install -y nodejs
+
+    echo "✅ Node.js version: $(node -v)"
+    echo "✅ NPM version: $(npm -v)"
+else
+    echo "✅ Node.js already installed: $(node -v)"
+    echo "✅ NPM version: $(npm -v)"
+fi
+
+###############################################
+# 1) INSTALL PM2 IF MISSING
+###############################################
+if ! command -v pm2 >/dev/null 2>&1; then
+    echo "⚠️ PM2 not found. Installing globally..."
+    sudo npm install -g pm2@latest
+    echo "✅ PM2 installed: $(pm2 -v)"
+else
+    echo "✅ PM2 already installed: $(pm2 -v)"
+fi
+
+###############################################
+# 2) ASK USER INPUTS
 ###############################################
 
 read -p "Enter app name (example: wallet-frontend): " APP_NAME
@@ -22,9 +49,8 @@ echo "2) NestJS (backend)"
 read -p "Enter choice (1 or 2): " APP_TYPE
 
 ###############################################
-# PATHS
+# 3) DEFINE PATHS
 ###############################################
-
 ROOT_PATH="/var/www/apps/$ENV/$APP_NAME"
 ENV_FILE="$ROOT_PATH/.env"
 DEPLOY_FILE="$ROOT_PATH/deploy.sh"
@@ -33,15 +59,14 @@ ROLLBACK_FILE="$ROOT_PATH/rollback.sh"
 mkdir -p "$ROOT_PATH"
 
 ###############################################
-# COPY ENV TEMPLATE
+# 4) COPY ENV TEMPLATE
 ###############################################
 cp "$TEMPLATE_DIR/env.template" "$ENV_FILE"
 echo "PORT=$PORT" >> "$ENV_FILE"
 
 ###############################################
-# SELECT DEPLOY TEMPLATE
+# 5) SELECT DEPLOY TEMPLATE
 ###############################################
-
 if [[ "$APP_TYPE" == "1" ]]; then
   DEPLOY_TEMPLATE="$TEMPLATE_DIR/deploy-next.sh.template"
   echo "App Type: Next.js"
@@ -51,7 +76,7 @@ else
 fi
 
 ###############################################
-# GENERATE deploy.sh
+# 6) GENERATE deploy.sh
 ###############################################
 sed \
   -e "s|__APP_NAME__|$APP_NAME|g" \
@@ -63,7 +88,7 @@ sed \
 chmod +x "$DEPLOY_FILE"
 
 ###############################################
-# GENERATE rollback.sh
+# 7) GENERATE rollback.sh
 ###############################################
 sed \
   -e "s|__APP_NAME__|$APP_NAME|g" \
@@ -73,11 +98,11 @@ sed \
 chmod +x "$ROLLBACK_FILE"
 
 ###############################################
+# 8) DONE
+###############################################
 echo "🎉 App setup completed!"
 echo "📁 App root: $ROOT_PATH"
 echo "📝 Env file: $ENV_FILE"
-echo "🚀 Deploy using:"
-echo "     $DEPLOY_FILE"
-echo "↩ Rollback using:"
-echo "     $ROLLBACK_FILE"
+echo "🚀 Deploy using: $DEPLOY_FILE"
+echo "↩ Rollback using: $ROLLBACK_FILE"
 echo "🔥 PM2 Name: $PM2_NAME"
