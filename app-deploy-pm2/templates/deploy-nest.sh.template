@@ -45,6 +45,5 @@ pm2 start "node dist/apps/$APP_NAME/main.js" \
   --name "$PM2_NAME" \
   --cwd "$ROOT"
 
-nginx -t && systemctl reload nginx
 
 echo "🎉 Deployment Complete!"
