@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+APP_NAME="__APP_NAME__"
+ENV="__ENV__"
+
+ROOT="/var/www/apps/$ENV/$APP_NAME"
+BACKUP="/var/www/apps/$ENV/$APP_NAME-backup"
+
+echo "⏪ Rolling back $APP_NAME on $ENV..."
+
+if [ ! -d "$BACKUP" ]; then
+  echo "❌ No backup found!"
+  exit 1
+fi
+
+rm -rf "$ROOT"
+mv "$BACKUP" "$ROOT"
+
+pm2 restart all
+
+echo "✅ Rollback complete!"

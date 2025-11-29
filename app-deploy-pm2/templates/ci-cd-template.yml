@@ -1,0 +1,28 @@
+name: Deploy <APP_NAME> (<ENV>)
+
+on:
+  push:
+    branches: [ <BRANCH> ]         # dev / staging / production
+    paths:
+      - "apps/<APP_NAME>/**"       # only trigger when this app changes
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy <APP_NAME> to <ENV> server
+    runs-on: [self-hosted, <RUNNER_LABEL>]
+
+    steps:
+      - name: 🧾 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🧰 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 🚀 Run Deployment Script (<ENV>)
+        run: |
+          echo "🚀 Starting deployment for <APP_NAME> on <ENV>..."
+          cd /var/www/apps/<ENV>/<APP_NAME>
+          bash ./deploy.sh
