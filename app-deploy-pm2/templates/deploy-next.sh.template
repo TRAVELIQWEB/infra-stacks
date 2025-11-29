@@ -1,0 +1,55 @@
+#!/bin/bash
+set -e
+
+APP_NAME="__APP_NAME__"
+ENV="__ENV__"
+PM2_NAME="__PM2_NAME__"
+PORT="__PORT__"
+
+ROOT="/var/www/apps/$ENV/$APP_NAME"
+TEMP="$ROOT-temp"
+BACKUP="$ROOT-backup"
+
+echo "🚀 Deploying $APP_NAME (Next.js) for $ENV..."
+
+rm -rf "$TEMP"
+mkdir -p "$TEMP"
+
+# Clone latest branch
+git clone --branch "$ENV" --depth=1 git@github.com:TRAVELIQWEB/SAARTHI-PORTAL.git "$TEMP"
+
+# Copy environment
+cp "$ROOT/.env" "$TEMP/apps/$APP_NAME/.env.local"
+
+cd "$TEMP"
+npm ci --legacy-peer-deps
+
+echo "🏗 Building Next.js..."
+npx nx build $APP_NAME --configuration=production
+
+if [ ! -d "$TEMP/dist/apps/$APP_NAME/.next" ]; then
+  echo "❌ Build failed!"
+  exit 1
+fi
+
+# Backup old
+if [ -d "$ROOT" ]; then
+  rm -rf "$BACKUP"
+  mv "$ROOT" "$BACKUP"
+fi
+
+mv "$TEMP" "$ROOT"
+
+echo "🚀 Restarting PM2..."
+pm2 stop "$PM2_NAME" || true
+pm2 delete "$PM2_NAME" || true
+fuser -k $PORT/tcp || true
+sleep 2
+
+pm2 start "npx next start dist/apps/$APP_NAME --port=$PORT" \
+  --name "$PM2_NAME" \
+  --cwd "$ROOT"
+
+nginx -t && systemctl reload nginx
+
+echo "🎉 Deployment Complete!"
