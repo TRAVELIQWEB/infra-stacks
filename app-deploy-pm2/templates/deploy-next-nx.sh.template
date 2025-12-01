@@ -11,10 +11,9 @@ BASE="/var/www/apps/$ENV/$APP_NAME"
 ROOT="$BASE/current"
 BACKUP="$BASE/backup"
 ENV_FILE="$BASE/env/.env"
-
 TEMP="$BASE/temp-build"
 
-echo "🚀 Deploying $APP_NAME (Next.js) for $ENV..."
+echo "🚀 Deploying $APP_NAME (Next.js - Nx Monorepo) for $ENV..."
 
 # Clean temp folder
 rm -rf "$TEMP"
@@ -23,17 +22,18 @@ mkdir -p "$TEMP"
 # Clone latest branch
 git clone --branch "$ENV" --depth=1 git@github.com:TRAVELIQWEB/SAARTHI-PORTAL.git "$TEMP"
 
-# Copy environment
+# Copy environment into Nx app folder
 cp "$ENV_FILE" "$TEMP/apps/$APP_NAME/.env.local"
 
 cd "$TEMP"
 npm ci --legacy-peer-deps
 
-echo "🏗 Building Next.js..."
-npx nx build $APP_NAME --configuration=production
+echo "🏗 Building Next.js (Nx)..."
+npx nx build "$APP_NAME" --configuration=production
 
+# Validate build
 if [ ! -d "$TEMP/dist/apps/$APP_NAME/.next" ]; then
-  echo "❌ Build failed!"
+  echo "❌ Build failed! .next output missing"
   exit 1
 fi
 
@@ -46,11 +46,12 @@ mv "$TEMP" "$ROOT"
 echo "🚀 Restarting PM2..."
 pm2 stop "$PM2_NAME" || true
 pm2 delete "$PM2_NAME" || true
-fuser -k $PORT/tcp || true
+fuser -k "$PORT"/tcp || true
 sleep 2
 
-pm2 start "npx next start dist/apps/$APP_NAME --port=$PORT" \
+# ✅ Correct PM2 command for Nx monorepo dist folder
+pm2 start "npx next start --port=$PORT" \
   --name "$PM2_NAME" \
-  --cwd "$ROOT"
+  --cwd "$ROOT/dist/apps/$APP_NAME"
 
 echo "🎉 Deployment Complete!"

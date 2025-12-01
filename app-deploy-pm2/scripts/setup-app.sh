@@ -12,15 +12,10 @@ echo "🚀 PM2 App Setup Tool"
 ###############################################
 if ! command -v node >/dev/null 2>&1; then
     echo "⚠️ Node.js not found. Installing Node.js 20 + npm..."
-
     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
     sudo apt install -y nodejs
-
-    echo "✅ Node.js version: $(node -v)"
-    echo "✅ NPM version: $(npm -v)"
 else
     echo "✅ Node.js already installed: $(node -v)"
-    echo "✅ NPM version: $(npm -v)"
 fi
 
 ###############################################
@@ -29,7 +24,6 @@ fi
 if ! command -v pm2 >/dev/null 2>&1; then
     echo "⚠️ PM2 not found. Installing globally..."
     sudo npm install -g pm2@latest
-    echo "✅ PM2 installed: $(pm2 -v)"
 else
     echo "✅ PM2 already installed: $(pm2 -v)"
 fi
@@ -37,42 +31,45 @@ fi
 ###############################################
 # 2) ASK USER INPUTS
 ###############################################
-
 read -p "Enter app name (example: wallet-frontend): " APP_NAME
 read -p "Enter environment (dev/staging/prod): " ENV
 read -p "Enter domain PM2 name (example: air.saarthii.co.in): " PM2_NAME
 read -p "Enter port: " PORT
 
-echo "Select app type:"
-echo "1) Next.js (frontend)"
-echo "2) NestJS (backend)"
-read -p "Enter choice (1 or 2): " APP_TYPE
+# Validate port
+if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
+  echo "❌ Invalid port number! Must be digits only."
+  exit 1
+fi
 
-###############################################
-# 3) DEFINE PATHS
-###############################################
+echo "Select app type:"
+echo "1) Next.js (Nx Monorepo)"
+echo "2) Next.js (Standalone)"
+echo "3) NestJS (backend)"
+read -p "Enter choice (1/2/3): " APP_TYPE
+
 ###############################################
 # 3) DEFINE PATHS (SAFE STRUCTURE)
 ###############################################
 ROOT_PATH="/var/www/apps/$ENV/$APP_NAME"
 
-# New folder structure
 SCRIPT_DIR_PATH="$ROOT_PATH/scripts"
 ENV_DIR_PATH="$ROOT_PATH/env"
 CURRENT_PATH="$ROOT_PATH/current"
 BACKUP_PATH="$ROOT_PATH/backup"
 
-# Files inside their folders
 ENV_FILE="$ENV_DIR_PATH/.env"
 DEPLOY_FILE="$SCRIPT_DIR_PATH/deploy.sh"
 ROLLBACK_FILE="$SCRIPT_DIR_PATH/rollback.sh"
 
 # Create folders
-mkdir -p "$SCRIPT_DIR_PATH"
-mkdir -p "$ENV_DIR_PATH"
-mkdir -p "$CURRENT_PATH"
-mkdir -p "$BACKUP_PATH"
+mkdir -p "$SCRIPT_DIR_PATH" "$ENV_DIR_PATH" "$CURRENT_PATH" "$BACKUP_PATH"
 
+# Ensure folders are tracked in Git
+touch "$SCRIPT_DIR_PATH/.gitkeep"
+touch "$ENV_DIR_PATH/.gitkeep"
+touch "$CURRENT_PATH/.gitkeep"
+touch "$BACKUP_PATH/.gitkeep"
 
 ###############################################
 # 4) COPY ENV TEMPLATE
@@ -83,13 +80,26 @@ echo "PORT=$PORT" >> "$ENV_FILE"
 ###############################################
 # 5) SELECT DEPLOY TEMPLATE
 ###############################################
-if [[ "$APP_TYPE" == "1" ]]; then
-  DEPLOY_TEMPLATE="$TEMPLATE_DIR/deploy-next.sh.template"
-  echo "App Type: Next.js"
-else
-  DEPLOY_TEMPLATE="$TEMPLATE_DIR/deploy-nest.sh.template"
-  echo "App Type: NestJS"
-fi
+case "$APP_TYPE" in
+  1)
+    DEPLOY_TEMPLATE="$TEMPLATE_DIR/deploy-next.sh.template"
+    APP_TYPE_LABEL="Next.js (Nx Monorepo)"
+    ;;
+  2)
+    DEPLOY_TEMPLATE="$TEMPLATE_DIR/deploy-next-standalone.sh.template"
+    APP_TYPE_LABEL="Next.js (Standalone)"
+    ;;
+  3)
+    DEPLOY_TEMPLATE="$TEMPLATE_DIR/deploy-nest.sh.template"
+    APP_TYPE_LABEL="NestJS (backend)"
+    ;;
+  *)
+    echo "❌ Invalid app type selected."
+    exit 1
+    ;;
+esac
+
+echo "App Type: $APP_TYPE_LABEL"
 
 ###############################################
 # 6) GENERATE deploy.sh
