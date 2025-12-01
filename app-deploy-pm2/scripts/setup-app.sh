@@ -82,7 +82,7 @@ echo "PORT=$PORT" >> "$ENV_FILE"
 ###############################################
 case "$APP_TYPE" in
   1)
-    DEPLOY_TEMPLATE="$TEMPLATE_DIR/deploy-next.sh.template"
+    DEPLOY_TEMPLATE="$TEMPLATE_DIR/deploy-next-nx.sh.template"
     APP_TYPE_LABEL="Next.js (Nx Monorepo)"
     ;;
   2)
