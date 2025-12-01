@@ -4,8 +4,9 @@ set -e
 APP_NAME="__APP_NAME__"
 ENV="__ENV__"
 
-ROOT="/var/www/apps/$ENV/$APP_NAME"
-BACKUP="/var/www/apps/$ENV/$APP_NAME-backup"
+BASE="/var/www/apps/$ENV/$APP_NAME"
+CURRENT="$BASE/current"
+BACKUP="$BASE/backup"
 
 echo "⏪ Rolling back $APP_NAME on $ENV..."
 
@@ -14,9 +15,13 @@ if [ ! -d "$BACKUP" ]; then
   exit 1
 fi
 
-rm -rf "$ROOT"
-mv "$BACKUP" "$ROOT"
+# Remove current build
+rm -rf "$CURRENT"
 
+# Restore backup
+mv "$BACKUP" "$CURRENT"
+
+echo "🔄 Restarting PM2..."
 pm2 restart all
 
 echo "✅ Rollback complete!"

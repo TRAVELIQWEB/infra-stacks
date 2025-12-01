@@ -6,18 +6,24 @@ ENV="__ENV__"
 PM2_NAME="__PM2_NAME__"
 PORT="__PORT__"
 
-ROOT="/var/www/apps/$ENV/$APP_NAME"
-TEMP="$ROOT-temp"
-BACKUP="$ROOT-backup"
+BASE="/var/www/apps/$ENV/$APP_NAME"
+ROOT="$BASE/current"
+BACKUP="$BASE/backup"
+ENV_FILE="$BASE/env/.env"
+
+TEMP="$BASE/temp-build"
 
 echo "🚀 Deploying $APP_NAME (NestJS) for $ENV..."
 
+# Clean old temp folder
 rm -rf "$TEMP"
 mkdir -p "$TEMP"
 
+# Clone code from GitHub
 git clone --branch "$ENV" --depth=1 git@github.com:TRAVELIQWEB/SAARTHI-PORTAL.git "$TEMP"
 
-cp "$ROOT/.env" "$TEMP/apps/$APP_NAME/.env"
+# Copy environment file
+cp "$ENV_FILE" "$TEMP/apps/$APP_NAME/.env"
 
 cd "$TEMP"
 npm ci --legacy-peer-deps
@@ -30,6 +36,7 @@ if [ ! -f "$TEMP/dist/apps/$APP_NAME/main.js" ]; then
   exit 1
 fi
 
+echo "📦 Replacing old build..."
 rm -rf "$BACKUP"
 [ -d "$ROOT" ] && mv "$ROOT" "$BACKUP"
 
@@ -44,6 +51,5 @@ sleep 2
 pm2 start "node dist/apps/$APP_NAME/main.js" \
   --name "$PM2_NAME" \
   --cwd "$ROOT"
-
 
 echo "🎉 Deployment Complete!"

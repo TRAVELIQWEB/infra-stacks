@@ -51,12 +51,28 @@ read -p "Enter choice (1 or 2): " APP_TYPE
 ###############################################
 # 3) DEFINE PATHS
 ###############################################
+###############################################
+# 3) DEFINE PATHS (SAFE STRUCTURE)
+###############################################
 ROOT_PATH="/var/www/apps/$ENV/$APP_NAME"
-ENV_FILE="$ROOT_PATH/.env"
-DEPLOY_FILE="$ROOT_PATH/deploy.sh"
-ROLLBACK_FILE="$ROOT_PATH/rollback.sh"
 
-mkdir -p "$ROOT_PATH"
+# New folder structure
+SCRIPT_DIR_PATH="$ROOT_PATH/scripts"
+ENV_DIR_PATH="$ROOT_PATH/env"
+CURRENT_PATH="$ROOT_PATH/current"
+BACKUP_PATH="$ROOT_PATH/backup"
+
+# Files inside their folders
+ENV_FILE="$ENV_DIR_PATH/.env"
+DEPLOY_FILE="$SCRIPT_DIR_PATH/deploy.sh"
+ROLLBACK_FILE="$SCRIPT_DIR_PATH/rollback.sh"
+
+# Create folders
+mkdir -p "$SCRIPT_DIR_PATH"
+mkdir -p "$ENV_DIR_PATH"
+mkdir -p "$CURRENT_PATH"
+mkdir -p "$BACKUP_PATH"
+
 
 ###############################################
 # 4) COPY ENV TEMPLATE

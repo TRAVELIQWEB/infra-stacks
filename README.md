@@ -70,7 +70,9 @@ nano ~/.ssh/config
 # ===========================
 # infra-stacks (Infra Repo)
 # ===========================
-Host github-infra
+
+# Repo: infra-stacks
+Host infra-stacks
     HostName ssh.github.com
     User git
     Port 443

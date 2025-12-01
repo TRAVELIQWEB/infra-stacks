@@ -6,12 +6,17 @@ ENV="__ENV__"
 PM2_NAME="__PM2_NAME__"
 PORT="__PORT__"
 
-ROOT="/var/www/apps/$ENV/$APP_NAME"
-TEMP="$ROOT-temp"
-BACKUP="$ROOT-backup"
+# New folder structure
+BASE="/var/www/apps/$ENV/$APP_NAME"
+ROOT="$BASE/current"
+BACKUP="$BASE/backup"
+ENV_FILE="$BASE/env/.env"
+
+TEMP="$BASE/temp-build"
 
 echo "🚀 Deploying $APP_NAME (Next.js) for $ENV..."
 
+# Clean temp folder
 rm -rf "$TEMP"
 mkdir -p "$TEMP"
 
@@ -19,7 +24,7 @@ mkdir -p "$TEMP"
 git clone --branch "$ENV" --depth=1 git@github.com:TRAVELIQWEB/SAARTHI-PORTAL.git "$TEMP"
 
 # Copy environment
-cp "$ROOT/.env" "$TEMP/apps/$APP_NAME/.env.local"
+cp "$ENV_FILE" "$TEMP/apps/$APP_NAME/.env.local"
 
 cd "$TEMP"
 npm ci --legacy-peer-deps
@@ -32,11 +37,9 @@ if [ ! -d "$TEMP/dist/apps/$APP_NAME/.next" ]; then
   exit 1
 fi
 
-# Backup old
-if [ -d "$ROOT" ]; then
-  rm -rf "$BACKUP"
-  mv "$ROOT" "$BACKUP"
-fi
+echo "📦 Replacing old build..."
+rm -rf "$BACKUP"
+[ -d "$ROOT" ] && mv "$ROOT" "$BACKUP"
 
 mv "$TEMP" "$ROOT"
 
@@ -49,6 +52,5 @@ sleep 2
 pm2 start "npx next start dist/apps/$APP_NAME --port=$PORT" \
   --name "$PM2_NAME" \
   --cwd "$ROOT"
-
 
 echo "🎉 Deployment Complete!"
