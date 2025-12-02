@@ -93,7 +93,8 @@ Clone:
 
 ```
 sudo chown -R $USER:$USER /opt
-git clone git@github-infra:TRAVELIQWEB/infra-stacks.git /opt/infra
+git clone git@infra-stacks:TRAVELIQWEB/infra-stacks.git /opt/infra
+
 ```
 
 ---
@@ -103,7 +104,8 @@ git clone git@github-infra:TRAVELIQWEB/infra-stacks.git /opt/infra
 ```
 chmod +x helpers/*.sh
 chmod +x stacks/*/scripts/*.sh
-chmod +x app-deploy/scripts/*.sh
+chmod +x app-deploy-pm2/scripts/*.sh
+chmod +x app-deploy-docker/scripts/*.sh
 
 ```
 

@@ -63,7 +63,10 @@ DEPLOY_FILE="$SCRIPT_DIR_PATH/deploy.sh"
 ROLLBACK_FILE="$SCRIPT_DIR_PATH/rollback.sh"
 
 # Create folders
-mkdir -p "$SCRIPT_DIR_PATH" "$ENV_DIR_PATH" "$CURRENT_PATH" "$BACKUP_PATH"
+sudo mkdir -p "$SCRIPT_DIR_PATH" "$ENV_DIR_PATH" "$CURRENT_PATH" "$BACKUP_PATH"
+
+# Give ownership back to the current user
+sudo chown -R $USER:$USER "$ROOT_PATH"
 
 # Ensure folders are tracked in Git
 touch "$SCRIPT_DIR_PATH/.gitkeep"
