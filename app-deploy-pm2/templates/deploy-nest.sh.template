@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-APP_NAME="__APP_NAME__"
-ENV="__ENV__"
-PM2_NAME="__PM2_NAME__"
-PORT="__PORT__"
+APP_NAME="wallet-api"
+ENV="dev"
+PM2_NAME="dev-wallet-api.9772424365.com"
+PORT="6001"
 
 BASE="/var/www/apps/$ENV/$APP_NAME"
 ROOT="$BASE/current"
@@ -14,25 +14,25 @@ TEMP="$BASE/temp-build"
 
 echo "🚀 Deploying $APP_NAME (Standalone NestJS) for $ENV..."
 
-# 1) Clean temp folder
+# Clean temp
 rm -rf "$TEMP"
 mkdir -p "$TEMP"
 
-# 2) Clone repo using SSH alias
+# Clone branch
 git clone --branch "$ENV" --depth=1 git@app-deploy:TRAVELIQWEB/wallet-auth.git "$TEMP"
 
-# 3) Copy environment file into project root
+# Copy env to project root
 cp "$ENV_FILE" "$TEMP/.env"
 
-# 4) Install dependencies
+# Install dependencies
 cd "$TEMP"
 npm ci --legacy-peer-deps
 
-# 5) Build NestJS
+# Build NestJS
 echo "🏗 Building NestJS..."
 npm run build
 
-# 6) Validate build
+# Ensure dist exists
 if [ ! -f "$TEMP/dist/main.js" ]; then
   echo "❌ Build failed: dist/main.js missing"
   exit 1
@@ -43,11 +43,12 @@ rm -rf "$BACKUP"
 [ -d "$ROOT" ] && mv "$ROOT" "$BACKUP"
 mv "$TEMP" "$ROOT"
 
+# Restart PM2
 echo "🚀 Restarting PM2..."
 pm2 stop "$PM2_NAME" || true
 pm2 delete "$PM2_NAME" || true
-fuser -k "$PORT"/tcp || true
-sleep 2
+fuser -k $PORT/tcp || true
+sleep 1
 
 pm2 start "node dist/main.js" \
   --name "$PM2_NAME" \
