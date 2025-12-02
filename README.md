@@ -44,7 +44,7 @@ infra/
 
 | Component | Documentation |
 |----------|---------------|
-| **App Deployment (Frontend/Backend)** | 👉 [`app-deploy/README.md`](app-deploy/README.md) |
+| **App Deployment (Frontend/Backend)** | 👉 [`app-deploy/README.md`](app-deploy-pm2/README.md) |
 | **Redis Stack** | 👉 [`stacks/redis/README.md`](stacks/redis/README.md) |
 | **Redis Sentinel** | 👉 [`stacks/sentinel/README.md`](stacks/sentinel/README.md) |
 | **Mongo Replica Set** | 👉 [`stacks/mongo/README.md`](stacks/mongo/README.md) |
