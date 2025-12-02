@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-APP_NAME="__APP_NAME__"      # The Nx app name you want to build (e.g. wallet-api)
+APP_NAME="__APP_NAME__"
 ENV="__ENV__"
 PM2_NAME="__PM2_NAME__"
 PORT="__PORT__"
@@ -12,39 +12,29 @@ BACKUP="$BASE/backup"
 ENV_FILE="$BASE/env/.env"
 TEMP="$BASE/temp-build"
 
-echo "🚀 Deploying $APP_NAME (NestJS - Nx Monorepo) for $ENV..."
+echo "🚀 Deploying $APP_NAME (Standalone NestJS) for $ENV..."
 
-# Clean temp folder
+# 1) Clean temp folder
 rm -rf "$TEMP"
 mkdir -p "$TEMP"
 
-# Clone correct branch using SSH alias
+# 2) Clone repo using SSH alias
 git clone --branch "$ENV" --depth=1 git@app-deploy:TRAVELIQWEB/wallet-auth.git "$TEMP"
 
-# Find correct backend folder inside Nx apps/
-TARGET_DIR=$(find "$TEMP/apps" -maxdepth 1 -type d -name "$APP_NAME" -print -quit)
+# 3) Copy environment file into project root
+cp "$ENV_FILE" "$TEMP/.env"
 
-if [ -z "$TARGET_DIR" ]; then
-  echo "❌ ERROR: Folder '$APP_NAME' not found inside apps/"
-  echo "Available folders:"
-  ls "$TEMP/apps"
-  exit 1
-fi
-
-# Copy environment file into backend app folder
-cp "$ENV_FILE" "$TARGET_DIR/.env"
-
+# 4) Install dependencies
 cd "$TEMP"
-
-echo "📦 Installing dependencies..."
 npm ci --legacy-peer-deps
 
+# 5) Build NestJS
 echo "🏗 Building NestJS..."
-npx nx build "$APP_NAME" --configuration=production
+npm run build
 
-# Validate build output
-if [ ! -f "$TEMP/dist/apps/$APP_NAME/main.js" ]; then
-  echo "❌ Build failed! main.js missing"
+# 6) Validate build
+if [ ! -f "$TEMP/dist/main.js" ]; then
+  echo "❌ Build failed: dist/main.js missing"
   exit 1
 fi
 
@@ -59,7 +49,7 @@ pm2 delete "$PM2_NAME" || true
 fuser -k "$PORT"/tcp || true
 sleep 2
 
-pm2 start "node dist/apps/$APP_NAME/main.js" \
+pm2 start "node dist/main.js" \
   --name "$PM2_NAME" \
   --cwd "$ROOT"
 
