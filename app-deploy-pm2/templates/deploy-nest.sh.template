@@ -20,7 +20,7 @@ rm -rf "$TEMP"
 mkdir -p "$TEMP"
 
 # Clone code from GitHub
-git clone --branch "$ENV" --depth=1 https://github.com/TRAVELIQWEB/wallet-auth.git "$TEMP"
+git clone --branch "$ENV" --depth=1 https://app-deploy/TRAVELIQWEB/wallet-auth.git "$TEMP"
 
 # Copy environment file
 cp "$ENV_FILE" "$TEMP/apps/$APP_NAME/.env"
