@@ -19,7 +19,7 @@ rm -rf "$TEMP"
 mkdir -p "$TEMP"
 
 # Clone branch
-git clone --branch "$ENV" --depth=1 git@app-deploy:TRAVELIQWEB/wallet-auth.git "$TEMP"
+git clone --branch "$ENV" --depth=1 __GIT_REPO__ "$TEMP"
 
 # Copy env to project root
 cp "$ENV_FILE" "$TEMP/.env"

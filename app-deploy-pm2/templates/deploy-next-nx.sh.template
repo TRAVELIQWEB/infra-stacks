@@ -20,7 +20,7 @@ rm -rf "$TEMP"
 mkdir -p "$TEMP"
 
 # Clone latest branch
-git clone --branch "$ENV" --depth=1 git@github.com:TRAVELIQWEB/SAARTHI-PORTAL.git "$TEMP"
+git clone --branch "$ENV" --depth=1 __GIT_REPO__ "$TEMP"
 
 # Copy environment into Nx app folder
 cp "$ENV_FILE" "$TEMP/apps/$APP_NAME/.env.local"
