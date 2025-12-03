@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-APP_NAME="wallet-api"
-ENV="dev"
-PM2_NAME="dev-wallet-api.9772424365.com"
-PORT="6001"
+APP_NAME="__APP_NAME__"
+ENV="__ENV__"
+PM2_NAME="__PM2_NAME__"
+PORT="__PORT__"
 
 BASE="/var/www/apps/$ENV/$APP_NAME"
 ROOT="$BASE/current"
