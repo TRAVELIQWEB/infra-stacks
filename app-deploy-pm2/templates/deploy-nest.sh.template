@@ -50,8 +50,11 @@ pm2 delete "$PM2_NAME" || true
 fuser -k $PORT/tcp || true
 sleep 1
 
+
 pm2 start "node dist/main.js" \
+  -i __CPU_CORES__ \
   --name "$PM2_NAME" \
   --cwd "$ROOT"
+
 
 echo "🎉 Deployment Complete!"

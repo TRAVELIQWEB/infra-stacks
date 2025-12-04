@@ -54,6 +54,27 @@ GIT_REPO=$(echo "$GIT_REPO" | xargs)
 
 
 ###############################################
+# ASK FOR CPU CORES FOR PM2
+###############################################
+read -p "Enter number of CPU cores to use (1 for single core, 'max' for all cores): " CPU_CORES
+
+# Auto-correct invalid input
+TOTAL_CORES=$(nproc)
+
+if [[ "$CPU_CORES" =~ ^[0-9]+$ ]]; then
+    if (( CPU_CORES < 1 )); then
+        CPU_CORES=1
+    elif (( CPU_CORES > TOTAL_CORES )); then
+        CPU_CORES=$TOTAL_CORES
+    fi
+else
+    CPU_CORES=1
+fi
+
+echo "✔ Using $CPU_CORES core(s) for PM2"
+
+
+###############################################
 # 3) DEFINE PATHS (SAFE STRUCTURE)
 ###############################################
 ROOT_PATH="/var/www/apps/$ENV/$APP_NAME"
