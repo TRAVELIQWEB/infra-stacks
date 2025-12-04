@@ -47,15 +47,11 @@ echo "1) Next.js (Nx Monorepo)"
 echo "2) Next.js (Standalone)"
 echo "3) NestJS (backend)"
 read -p "Enter choice (1/2/3): " APP_TYPE
-read -p "Enter Git repository URL (SSH): " GIT_REPO
+read -p "Enter repository (example: TRAVELIQWEB/wallet-api): " GIT_REPO
+
 
 GIT_REPO=$(echo "$GIT_REPO" | xargs)
 
-# Optional validation
-if [[ ! "$GIT_REPO" =~ \.git$ ]]; then
-  echo "❌ Invalid Git repo URL. Must end with .git"
-  exit 1
-fi
 
 ###############################################
 # 3) DEFINE PATHS (SAFE STRUCTURE)
