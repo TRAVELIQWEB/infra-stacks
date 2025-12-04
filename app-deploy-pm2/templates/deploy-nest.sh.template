@@ -32,11 +32,20 @@ npm ci --legacy-peer-deps
 echo "🏗 Building NestJS..."
 npm run build
 
-# Ensure dist exists
-if [ ! -f "$TEMP/dist/main.js" ]; then
-  echo "❌ Build failed: dist/main.js missing"
+
+# Detect correct main.js path for ANY NestJS structure
+MAIN_JS=$(find "$TEMP/dist" -maxdepth 5 -type f -name "main.js" | head -n 1)
+
+
+if [ -z "$MAIN_JS" ]; then
+  echo "❌ Build failed: main.js not found inside dist/"
   exit 1
 fi
+
+
+echo "✅ Found entry file: $MAIN_JS"
+
+
 
 echo "📦 Replacing old build..."
 rm -rf "$BACKUP"
@@ -50,7 +59,7 @@ pm2 delete "$PM2_NAME" || true
 fuser -k $PORT/tcp || true
 sleep 1
 
-pm2 start "node dist/main.js" \
+pm2 start "node $MAIN_JS" \
   --name "$PM2_NAME" \
   --cwd "$ROOT"
 

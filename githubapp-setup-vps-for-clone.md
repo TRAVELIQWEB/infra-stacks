@@ -65,6 +65,38 @@ sudo chmod 600 /opt/github-app/fwms.pem
 
 ---
 
+# 🔐 2.1 Fix Private Key Permissions (IMPORTANT)
+
+After moving the PEM file:
+
+```bash
+sudo mkdir -p /opt/github-app
+sudo mv fwms.pem /opt/github-app/fwms.pem
+sudo chmod 600 /opt/github-app/fwms.pem
+```
+
+### ⚠️ **IMPORTANT: The PEM file must be readable by the deploy user (e.g., `sardevops`)**
+
+If the PEM is owned by `root`, the GitHub App authentication will fail with:
+
+```
+Permission denied: fopen(/opt/github-app/fwms.pem, rb)
+Failed to get installation token
+```
+
+Fix ownership:
+
+```bash
+sudo chown sardevops:sardevops /opt/github-app/fwms.pem
+```
+
+(Optional, but recommended):
+
+```bash
+sudo chown -R sardevops:sardevops /opt/github-app
+```
+
+
 # ✅ 3. Install GitHub App on Repositories
 
 Select only the repos needed:
