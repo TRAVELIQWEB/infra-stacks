@@ -139,6 +139,7 @@ sed \
   -e "s|__PORT__|$PORT|g" \
   -e "s|__ENV__|$ENV|g" \
   -e "s|__GIT_REPO__|$GIT_REPO|g" \
+  -e "s|__CPU_CORES__|$CPU_CORES|g" \
   "$DEPLOY_TEMPLATE" > "$DEPLOY_FILE"
 
 chmod +x "$DEPLOY_FILE"

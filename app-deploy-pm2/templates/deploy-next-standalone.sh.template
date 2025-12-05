@@ -58,6 +58,7 @@ fuser -k "$PORT"/tcp || true
 sleep 2
 
 pm2 start "npx next start -p $PORT" \
+  -i __CPU_CORES__ \
   --name "$PM2_NAME" \
   --cwd "$ROOT"
 

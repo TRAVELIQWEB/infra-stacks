@@ -51,6 +51,7 @@ sleep 2
 
 # ✅ Correct PM2 command for Nx monorepo dist folder
 pm2 start "npx next start --port=$PORT" \
+  -i __CPU_CORES__ \
   --name "$PM2_NAME" \
   --cwd "$ROOT/dist/apps/$APP_NAME"
 
