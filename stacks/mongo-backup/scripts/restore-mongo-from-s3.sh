@@ -58,24 +58,7 @@ else
     echo -e "${GREEN}MongoDB Tools already installed.${RESET}"
 fi
 
-if [ "$NEED_MONGOSH" = true ]; then
-    echo -e "${YELLOW}Installing MongoDB Shell (mongosh)...${RESET}"
 
-    # Install MongoDB Shell (7.0 repo – client only)
-    curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
-    echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org-7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
-    sudo apt update
-    sudo apt install -y mongodb-mongosh
-
-    if command -v mongosh >/dev/null 2>&1; then
-        echo -e "${GREEN}MongoDB Shell installed successfully.${RESET}"
-    else
-        echo -e "${RED}MongoDB Shell installation failed!${RESET}"
-        exit 1
-    fi
-else
-    echo -e "${GREEN}MongoDB Shell already installed.${RESET}"
-fi
 
 echo -e "${GREEN}All required tools installed.${RESET}"
 

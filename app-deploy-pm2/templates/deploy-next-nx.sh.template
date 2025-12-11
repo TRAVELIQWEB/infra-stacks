@@ -6,6 +6,8 @@ ENV="__ENV__"
 PM2_NAME="__PM2_NAME__"
 PORT="__PORT__"
 
+CPU_CORES=__CPU_CORES__
+
 # New folder structure
 BASE="/var/www/apps/$ENV/$APP_NAME"
 ROOT="$BASE/current"
@@ -50,9 +52,15 @@ fuser -k "$PORT"/tcp || true
 sleep 2
 
 # ✅ Correct PM2 command for Nx monorepo dist folder
-pm2 start "npx next start --port=$PORT" \
-  -i __CPU_CORES__ \
+
+pm2 start "next start -p $PORT" \
   --name "$PM2_NAME" \
-  --cwd "$ROOT/dist/apps/$APP_NAME"
+  --cwd "$ROOT/dist/apps/$APP_NAME" \
+  -i "${CPU_CORES}" \
+  --merge-logs \
+  --time \
+  --update-env \
+  --env production
+
 
 echo "🎉 Deployment Complete!"

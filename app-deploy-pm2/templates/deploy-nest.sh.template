@@ -6,6 +6,8 @@ ENV="__ENV__"
 PM2_NAME="__PM2_NAME__"
 PORT="__PORT__"
 
+CPU_CORES=__CPU_CORES__
+
 BASE="/var/www/apps/$ENV/$APP_NAME"
 ROOT="$BASE/current"
 BACKUP="$BASE/backup"
@@ -51,10 +53,13 @@ fuser -k $PORT/tcp || true
 sleep 1
 
 
-pm2 start "node dist/main.js" \
-  -i __CPU_CORES__ \
+pm2 start dist/main.js \
   --name "$PM2_NAME" \
-  --cwd "$ROOT"
-
+  --cwd "$ROOT" \
+  -i "$CPU_CORES" \
+  --merge-logs \
+  --time \
+  --update-env \
+  --env production
 
 echo "🎉 Deployment Complete!"
