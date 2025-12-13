@@ -20,6 +20,17 @@ info "⬤ Setting up Redis Sentinel (1 per VPS)"
 SENTINEL_PORT=$(ask "Enter sentinel port (default 26379):")
 [[ -z "$SENTINEL_PORT" ]] && SENTINEL_PORT=26379
 
+# -------------------------------
+# ASK SENTINEL PASSWORD
+# -------------------------------
+SENTINEL_PASSWORD=$(ask "Enter Sentinel password (required):")
+
+if [[ -z "$SENTINEL_PASSWORD" ]]; then
+  error "❌ Sentinel password cannot be empty"
+  exit 1
+fi
+
+
 CONF_DIR="/opt/redis-sentinel"
 CONF_FILE="${CONF_DIR}/sentinel-${SENTINEL_PORT}.conf"
 safe_mkdir "$CONF_DIR"
@@ -27,8 +38,11 @@ safe_mkdir "$CONF_DIR"
 # -------------------------------
 # BASE TEMPLATE
 # -------------------------------
+
 env SENTINEL_PORT="$SENTINEL_PORT" \
-  envsubst < "$TEMPLATE_DIR/sentinel.conf.tpl" > "$CONF_FILE"
+    SENTINEL_PASSWORD="$SENTINEL_PASSWORD" \
+    envsubst < "$TEMPLATE_DIR/sentinel.conf.tpl" > "$CONF_FILE"
+
 
 info ""
 info "🛰  Scanning Redis clusters under /opt/redis-stack-* ..."

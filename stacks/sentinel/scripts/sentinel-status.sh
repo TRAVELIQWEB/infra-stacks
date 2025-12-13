@@ -13,23 +13,40 @@ fi
 
 echo "=== Redis Sentinel Status (Port $SENTINEL_PORT) ==="
 
-# Get master names only (raw mode)
-MASTER_NAMES=$(redis-cli --raw -p "$SENTINEL_PORT" SENTINEL masters \
+# -------------------------------
+# Ask for Sentinel password
+# -------------------------------
+read -s -p "Enter Sentinel password: " SENTINEL_PASSWORD
+echo ""
+
+if [[ -z "$SENTINEL_PASSWORD" ]]; then
+  echo "❌ Sentinel password required"
+  exit 1
+fi
+
+# -------------------------------
+# Get master names
+# -------------------------------
+MASTER_NAMES=$(redis-cli \
+  -a "$SENTINEL_PASSWORD" \        # ✅ AUTH ADDED
+  --raw -p "$SENTINEL_PORT" \
+  SENTINEL masters \
   | grep '^redis-' || true)
 
 if [[ -z "$MASTER_NAMES" ]]; then
-    echo "⚠ No masters detected (retrying with full parse)..."
+    echo "⚠ No masters detected"
+    exit 0
 fi
 
 for NAME in $MASTER_NAMES; do
   # Query details for each master
-  INFO=$(redis-cli --raw -p "$SENTINEL_PORT" SENTINEL master "$NAME")
+  INFO=$(redis-cli \
+    -a "$SENTINEL_PASSWORD" \      # ✅ AUTH ADDED
+    --raw -p "$SENTINEL_PORT" \
+    SENTINEL master "$NAME")
 
-  # Extract fields directly by key
   get() {
-    echo "$INFO" \
-      | grep -A1 "^$1$" \
-      | tail -n1
+    echo "$INFO" | grep -A1 "^$1$" | tail -n1
   }
 
   IP=$(get ip)

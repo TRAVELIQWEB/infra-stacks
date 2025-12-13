@@ -8,6 +8,9 @@ bind 0.0.0.0
 # Sentinel must NEVER run in protected mode
 protected-mode no
 
+# 🔐 Sentinel authentication
+requirepass ${SENTINEL_PASSWORD}
+
 # Run in foreground (docker handles daemon)
 daemonize no
 
