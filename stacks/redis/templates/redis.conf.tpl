@@ -1,3 +1,18 @@
+
+###############################################
+# Redis Stack modules (MUST BE FIRST)
+###############################################
+
+loadmodule /opt/redis-stack/lib/redisearch.so
+loadmodule /opt/redis-stack/lib/rejson.so
+loadmodule /opt/redis-stack/lib/redistimeseries.so
+loadmodule /opt/redis-stack/lib/redisbloom.so
+
+
+###############################################
+# Core Redis config
+###############################################
+
 port 6379
 bind 0.0.0.0
 protected-mode yes
@@ -32,15 +47,6 @@ replica-announce-port ${HOST_PORT}
 slave-announce-ip ${PUBLIC_IP}
 slave-announce-port ${HOST_PORT}
 
-
-###############################################
-# Redis Stack modules (REQUIRED when using conf)
-###############################################
-
-loadmodule /opt/redis-stack/lib/redisearch.so
-loadmodule /opt/redis-stack/lib/rejson.so
-loadmodule /opt/redis-stack/lib/redistimeseries.so
-loadmodule /opt/redis-stack/lib/redisbloom.so
 
 ###############################################
 # Replica settings (added automatically)
