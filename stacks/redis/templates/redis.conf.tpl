@@ -1,12 +1,13 @@
-
 ###############################################
-# Redis Stack modules (MUST BE FIRST)
+# Redis Stack modules (MUST BE FIRST, ORDERED)
 ###############################################
 
+loadmodule /opt/redis-stack/lib/rediscompat.so
 loadmodule /opt/redis-stack/lib/redisearch.so
 loadmodule /opt/redis-stack/lib/rejson.so
 loadmodule /opt/redis-stack/lib/redistimeseries.so
 loadmodule /opt/redis-stack/lib/redisbloom.so
+
 
 
 ###############################################
