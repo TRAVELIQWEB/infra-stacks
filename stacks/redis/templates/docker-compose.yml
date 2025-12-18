@@ -15,4 +15,4 @@ services:
       - "${DATA_DIR}:/data"
       - "${CONF_FILE}:/usr/local/etc/redis/redis.conf"
 
-    command: ["redis-stack-server"]
+    command: ["redis-stack-server", "/usr/local/etc/redis/redis.conf"]

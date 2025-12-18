@@ -34,6 +34,15 @@ slave-announce-port ${HOST_PORT}
 
 
 ###############################################
+# Redis Stack modules (REQUIRED when using conf)
+###############################################
+
+loadmodule /opt/redis-stack/lib/redisearch.so
+loadmodule /opt/redis-stack/lib/rejson.so
+loadmodule /opt/redis-stack/lib/redistimeseries.so
+loadmodule /opt/redis-stack/lib/redisbloom.so
+
+###############################################
 # Replica settings (added automatically)
 ###############################################
 # setup-instance.sh will append:
