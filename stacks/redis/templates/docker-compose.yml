@@ -8,9 +8,6 @@ services:
       - "${HOST_PORT}:6379"
       - "${HOST_PORT_UI}:8001"
 
-    environment:
-      - REDIS_ARGS=--requirepass ${REDIS_PASSWORD} --masterauth ${REDIS_PASSWORD}
-
     volumes:
       - "${DATA_DIR}:/data"
       - "${CONF_FILE}:/usr/local/etc/redis/redis.conf"
