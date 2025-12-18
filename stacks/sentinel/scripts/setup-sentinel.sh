@@ -88,10 +88,10 @@ for INSTANCE_DIR in /opt/redis-stack-*; do
   ###############################################
   if [[ "$ROLE" == "master" ]]; then
       TARGET_IP="$LOCAL_IP"       # master on this VPS
-      TARGET_PORT="$PORT"
+      TARGET_PORT=6379
   else
       TARGET_IP="$MASTER_IP"      # master on remote VPS (NetBird)
-      TARGET_PORT="$MASTER_PORT"
+      TARGET_PORT=6379
   fi
 
   info "→ Registering cluster redis-${PORT}  MASTER = ${TARGET_IP}:${TARGET_PORT}"
