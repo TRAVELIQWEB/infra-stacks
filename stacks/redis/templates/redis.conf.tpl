@@ -34,6 +34,13 @@ slave-announce-port ${HOST_PORT}
 
 
 ###############################################
+# Replica priority for failover
+###############################################
+# Lower number = higher priority for failover
+# 0 = Never become master (read-only replica)
+replica-priority ${REPLICA_PRIORITY}
+
+###############################################
 # Replica settings (added automatically)
 ###############################################
 # setup-instance.sh will append:
