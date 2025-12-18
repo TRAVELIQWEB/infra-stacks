@@ -27,9 +27,25 @@ if [[ "$ROLE" == "replica" ]]; then
   MASTER_IP=$(ask "Enter master IP (for all instances):")
 fi
 
+# SIMPLE PRIORITY QUESTION FOR EVERY SERVER
+echo ""
+info "📊 Priority Configuration:"
+info "   Lower number = higher priority to become master"
+info "   Examples:"
+info "     10 = Master VPS"
+info "     20 = First backup VPS"
+info "     30 = Second backup VPS"
+info "     0 = Read-only VPS (never becomes master)"
+echo ""
+
+REPLICA_PRIORITY=$(ask "Enter priority for ALL instances on this VPS (default 100):")
+[[ -z "$REPLICA_PRIORITY" ]] && REPLICA_PRIORITY=100
+
 echo ""
 info "🚀 Creating $COUNT Redis instances, starting from port $BASE_PORT"
+info "📊 Priority: $REPLICA_PRIORITY"
 echo ""
+
 
 ###############################################
 # Detect NetBird Private IP (10.50.x.x)
@@ -57,7 +73,7 @@ for ((i=0; i<COUNT; i++)); do
     MASTER_PORT=""
   fi
 
-  export PORT ROLE MASTER_IP MASTER_PORT PUBLIC_IP
+  export PORT ROLE MASTER_IP MASTER_PORT PUBLIC_IP REPLICA_PRIORITY
 
 
   bash "$BASE_DIR/stacks/redis/scripts/setup-instance.sh"
