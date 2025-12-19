@@ -90,7 +90,7 @@ safe_mkdir "$CONF_DIR"
 ###############################################
 cat > "$ENV_FILE" <<EOF
 CONTAINER_NAME=mongo-${MONGO_PORT}
-MONGO_IMAGE=mongo:8
+MONGO_IMAGE=mongo:8.0.16
 MONGO_PORT=${MONGO_PORT}
 MONGO_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
 MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
