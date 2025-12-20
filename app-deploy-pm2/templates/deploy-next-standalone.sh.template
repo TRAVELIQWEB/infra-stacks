@@ -60,15 +60,13 @@ fuser -k "$PORT"/tcp || true
 sleep 2
 
 
+
 pm2 start npm \
   --name "$PM2_NAME" \
   --cwd "$ROOT" \
-  -- start -- -p $PORT \
-  --merge-logs \
-  --time \
   --update-env \
-  --env production
-
+  --env production \
+  -- start -- -p $PORT
 
 
 echo "🎉 Deployment Complete!"
