@@ -95,6 +95,8 @@ Clone:
 sudo chown -R $USER:$USER /opt
 git clone git@infra-stacks:TRAVELIQWEB/infra-stacks.git /opt/infra
 
+sudo ufw default allow routed
+
 ```
 
 ---
