@@ -64,7 +64,6 @@ pm2 start npm \
   --name "$PM2_NAME" \
   --cwd "$ROOT" \
   -- start -- -p $PORT \
-  -i 1 \
   --merge-logs \
   --time \
   --update-env \
