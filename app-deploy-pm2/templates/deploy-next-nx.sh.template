@@ -53,14 +53,14 @@ sleep 2
 
 # ✅ Correct PM2 command for Nx monorepo dist folder
 
-pm2 start "next start -p $PORT" \
+
+pm2 start npm \
   --name "$PM2_NAME" \
   --cwd "$ROOT/dist/apps/$APP_NAME" \
-  -i "${CPU_CORES}" \
-  --merge-logs \
-  --time \
   --update-env \
-  --env production
+  --env production \
+  -- start -- -p $PORT
+
 
 
 echo "🎉 Deployment Complete!"
