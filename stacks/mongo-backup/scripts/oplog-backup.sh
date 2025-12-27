@@ -196,11 +196,11 @@ fi
 LAST_T="$(jq -r '.t' "$STATE_FILE")"
 LAST_I="$(jq -r '.i' "$STATE_FILE")"
 
-NEW_COUNT="$(mongosh --quiet "$(mongo_uri)" --eval "
-  const n = db.getSiblingDB('local').getCollection('oplog.rs')
-    .countDocuments({ ts: { \\$gt: Timestamp(${LAST_T},${LAST_I}) } });
+NEW_COUNT="$(mongosh --quiet "$(mongo_uri)" --eval '
+  const n = db.getSiblingDB("local").getCollection("oplog.rs")
+    .countDocuments({ ts: { $gt: Timestamp('"${LAST_T}"','"${LAST_I}"') } });
   print(n);
-" || true)"
+' || true)"
 
 if [ -z "${NEW_COUNT:-}" ] || ! [[ "$NEW_COUNT" =~ ^[0-9]+$ ]]; then
   echo "Failed to count oplog entries. NEW_COUNT='$NEW_COUNT'"
