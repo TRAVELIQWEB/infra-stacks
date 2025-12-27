@@ -259,7 +259,7 @@ echo -e "${GREEN}Runner created: ${RUNNER}${RESET}"
 
 ###############################################
 # 8) Install cron (every minute) + log
-###############################################
+############################################### 
 sudo touch "$LOG_FILE"
 sudo chown "$(whoami)":"$(whoami)" "$LOG_FILE"
 sudo chmod 644 "$LOG_FILE"
