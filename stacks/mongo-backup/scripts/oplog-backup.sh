@@ -12,6 +12,29 @@ echo -e "        MongoDB → S3 Continuous Oplog Backup"
 echo -e "======================================================${RESET}"
 
 ###############################################
+# Ensure mongosh exists (client only)
+###############################################
+if ! command -v mongosh >/dev/null 2>&1; then
+  echo -e "${YELLOW}mongosh not found. Installing MongoDB Shell...${RESET}"
+
+  # Add MongoDB 8.0 repo (jammy)
+  curl -fsSL https://pgp.mongodb.com/server-8.0.asc \
+    | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-8.0.gpg
+
+  echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] \
+https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" \
+    | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list >/dev/null
+
+  sudo apt update
+  sudo apt install -y mongodb-mongosh
+
+  echo -e "${GREEN}mongosh installed successfully.${RESET}"
+else
+  echo -e "${GREEN}mongosh already installed. Skipping.${RESET}"
+fi
+
+
+###############################################
 # 0) Dependencies
 ###############################################
 need_cmd() {
