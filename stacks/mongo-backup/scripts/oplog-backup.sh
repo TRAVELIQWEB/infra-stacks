@@ -35,6 +35,19 @@ fi
 
 
 ###############################################
+# Ensure jq exists
+###############################################
+if ! command -v jq >/dev/null 2>&1; then
+  echo -e "${YELLOW}jq not found. Installing jq...${RESET}"
+  sudo apt update
+  sudo apt install -y jq
+  echo -e "${GREEN}jq installed successfully.${RESET}"
+else
+  echo -e "${GREEN}jq already installed. Skipping.${RESET}"
+fi
+
+
+###############################################
 # 0) Dependencies
 ###############################################
 need_cmd() {
