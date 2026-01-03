@@ -37,6 +37,16 @@ jobs:
             package.json \
             next.config.js
 
+      # --------------------------------------------------
+      # Nx Monorepo (use this instead for Nx-based apps)
+      #
+      # - name: 📦 Create build artifact (Nx)
+      #   run: |
+      #     tar -czf <APP_NAME>-build.tar.gz \
+      #       dist/apps/<APP_NAME> \
+      #       package.json
+      # --------------------------------------------------
+      
       - name: ⬆ Upload build artifact
         uses: actions/upload-artifact@v4
         with:
