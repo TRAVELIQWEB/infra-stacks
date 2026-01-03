@@ -1,0 +1,74 @@
+#!/bin/bash
+set -e
+
+APP_NAME="__APP_NAME__"
+ENV="__ENV__"
+PM2_NAME="__PM2_NAME__"
+PORT="__PORT__"
+
+# Folder structure (unchanged)
+BASE="/var/www/apps/$ENV/$APP_NAME"
+ROOT="$BASE/current"
+BACKUP="$BASE/backup"
+TEMP="$BASE/temp"
+
+# Artifact passed from CI
+BUILD_ARCHIVE="$1"
+
+echo "🚀 Deploying $APP_NAME (Next.js Nx – Artifact mode) for $ENV..."
+
+############################################
+# 1. Validate artifact
+############################################
+if [ -z "$BUILD_ARCHIVE" ]; then
+  echo "❌ Build archive argument missing"
+  echo "Usage: deploy.sh <artifact.tar.gz>"
+  exit 1
+fi
+
+if [ ! -f "$BUILD_ARCHIVE" ]; then
+  echo "❌ Build archive not found: $BUILD_ARCHIVE"
+  exit 1
+fi
+
+############################################
+# 2. Prepare temp directory
+############################################
+rm -rf "$TEMP"
+mkdir -p "$TEMP"
+
+############################################
+# 3. Extract build artifact
+############################################
+echo "📦 Extracting build artifact..."
+tar -xzf "$BUILD_ARCHIVE" -C "$TEMP"
+
+# Nx safety check
+if [ ! -d "$TEMP/dist/apps/$APP_NAME/.next" ]; then
+  echo "❌ Invalid artifact: dist/apps/$APP_NAME/.next missing"
+  exit 1
+fi
+
+############################################
+# 4. Blue-Green swap
+############################################
+echo "🔁 Performing blue-green swap..."
+
+rm -rf "$BACKUP"
+[ -d "$ROOT" ] && mv "$ROOT" "$BACKUP"
+mv "$TEMP" "$ROOT"
+
+############################################
+# 5. Restart / Reload PM2
+############################################
+echo "🚀 Restarting PM2..."
+
+pm2 reload "$PM2_NAME" || \
+pm2 start npm \
+  --name "$PM2_NAME" \
+  --cwd "$ROOT/dist/apps/$APP_NAME" \
+  --update-env \
+  --env production \
+  -- start -- -p "$PORT"
+
+echo "✅ Deployment complete for $APP_NAME"

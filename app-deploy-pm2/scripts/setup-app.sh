@@ -43,10 +43,12 @@ if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
 fi
 
 echo "Select app type:"
-echo "1) Next.js (Nx Monorepo)"
-echo "2) Next.js (Standalone)"
+echo "1) Next.js (Nx Monorepo – build on server)"
+echo "2) Next.js (Standalone – build on server)"
 echo "3) NestJS (backend)"
-read -p "Enter choice (1/2/3): " APP_TYPE
+echo "4) Next.js (Standalone – Artifact-based, LB safe)"
+echo "5) Next.js (Nx Monorepo – Artifact-based, LB safe)"
+read -p "Enter choice (1/2/3/4/5): " APP_TYPE
 read -p "Enter repository (example: TRAVELIQWEB/wallet-api): " GIT_REPO
 
 
@@ -112,21 +114,30 @@ echo "PORT=$PORT" >> "$ENV_FILE"
 case "$APP_TYPE" in
   1)
     DEPLOY_TEMPLATE="$TEMPLATE_DIR/deploy-next-nx.sh.template"
-    APP_TYPE_LABEL="Next.js (Nx Monorepo)"
+    APP_TYPE_LABEL="Next.js (Nx Monorepo – build on server)"
     ;;
   2)
     DEPLOY_TEMPLATE="$TEMPLATE_DIR/deploy-next-standalone.sh.template"
-    APP_TYPE_LABEL="Next.js (Standalone)"
+    APP_TYPE_LABEL="Next.js (Standalone – build on server)"
     ;;
   3)
     DEPLOY_TEMPLATE="$TEMPLATE_DIR/deploy-nest.sh.template"
     APP_TYPE_LABEL="NestJS (backend)"
+    ;;
+  4)
+    DEPLOY_TEMPLATE="$TEMPLATE_DIR/deploy-next-standalone-artifact.sh.template"
+    APP_TYPE_LABEL="Next.js (Standalone – Artifact-based)"
+    ;;
+  5)
+    DEPLOY_TEMPLATE="$TEMPLATE_DIR/deploy-next-nx-artifact.sh.template"
+    APP_TYPE_LABEL="Next.js (Nx Monorepo – Artifact-based)"
     ;;
   *)
     echo "❌ Invalid app type selected."
     exit 1
     ;;
 esac
+
 
 echo "App Type: $APP_TYPE_LABEL"
 

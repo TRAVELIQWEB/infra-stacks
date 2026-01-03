@@ -138,6 +138,24 @@ bash stacks/mongo/scripts/mongo-status.sh
 
 ---
 
+# 7️⃣ Change voting duration to 20 sec 
+
+```
+bash stacks/mongo/scripts/mongo-status.sh
+
+rs.conf().settings.electionTimeoutMillis
+
+cfg = rs.conf()
+
+cfg.settings.electionTimeoutMillis = 20000
+
+rs.reconfig(cfg)
+
+rs.conf().settings.electionTimeoutMillis
+
+```
+---
+
 # 🔧 Recommended Kernel Tweaks
 
 ```
