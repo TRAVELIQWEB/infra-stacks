@@ -59,7 +59,23 @@ rm -rf "$BACKUP"
 mv "$TEMP" "$ROOT"
 
 ############################################
-# 5. Restart / Reload PM2
+# 5. Load private env (server-only)
+############################################
+ENV_FILE="$BASE/env/.env"
+
+if [ ! -f "$ENV_FILE" ]; then
+  echo "❌ Private env file missing: $ENV_FILE"
+  exit 1
+fi
+
+echo "🔐 Loading private env variables..."
+set -a
+source "$ENV_FILE"
+set +a
+
+
+############################################
+# 6. Restart / Reload PM2
 ############################################
 echo "🚀 Restarting PM2..."
 
