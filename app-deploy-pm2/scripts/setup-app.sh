@@ -115,6 +115,21 @@
   echo "PORT=$PORT" >> "$ENV_FILE"
 
   ###############################################
+  # 4.1) ASK FOR SYNC HOSTS (ONLY FOR SYNC APPS)
+  ###############################################
+  if [[ "$APP_TYPE" == "4" || "$APP_TYPE" == "5" ]]; then
+    read -p "Enter sync hosts (space separated, e.g. frontend3 frontend4): " SYNC_HOSTS
+
+    if [ -n "$SYNC_HOSTS" ]; then
+      echo "SYNC_HOSTS=\"$SYNC_HOSTS\"" >> "$ENV_FILE"
+      echo "✔ Sync hosts set: $SYNC_HOSTS"
+    else
+      echo "⚠ No sync hosts provided, sync will be skipped"
+    fi
+  fi
+
+
+  ###############################################
   # 5) SELECT DEPLOY TEMPLATE
   ###############################################
   case "$APP_TYPE" in
