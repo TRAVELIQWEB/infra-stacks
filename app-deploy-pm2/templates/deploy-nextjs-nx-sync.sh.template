@@ -1,0 +1,132 @@
+#!/bin/bash
+set -e
+
+# =====================================================
+# Required variables (replaced by setup script)
+# =====================================================
+APP_NAME="__APP_NAME__"        # Nx app name
+ENV="__ENV__"
+PM2_NAME="__PM2_NAME__"
+PORT="__PORT__"
+
+# =====================================================
+# 🔒 DEPLOY LOCK (BLOCKING)
+# =====================================================
+LOCK_FILE="/var/lock/${APP_NAME}-${ENV}-deploy.lock"
+
+exec 9>"$LOCK_FILE" || exit 1
+echo "⏳ Waiting for deploy lock..."
+flock 9
+echo "🔓 Deploy lock acquired"
+
+# =====================================================
+# Paths
+# =====================================================
+BASE="/var/www/apps/$ENV/$APP_NAME"
+RELEASES="$BASE/releases"
+CURRENT="$BASE/current"
+ENV_FILE="$BASE/env/.env"
+
+# =====================================================
+# Build metadata
+# =====================================================
+BUILD_ID=$(date +%Y%m%d-%H%M%S)
+RELEASE_DIR="$RELEASES/$BUILD_ID"
+
+echo "🚀 Sync Deploy (Next.js Nx Monorepo)"
+echo "📦 App : $APP_NAME"
+echo "🌍 Env : $ENV"
+echo "🆔 Build: $BUILD_ID"
+
+# =====================================================
+# Safety checks
+# =====================================================
+if [ ! -f "$ENV_FILE" ]; then
+  echo "❌ Env file not found: $ENV_FILE"
+  exit 1
+fi
+
+mkdir -p "$RELEASE_DIR"
+
+# =====================================================
+# Clone source
+# =====================================================
+/opt/github-app/gh-clone.sh "__GIT_REPO__" "$RELEASE_DIR" "$ENV"
+
+# Copy env into Nx app
+cp "$ENV_FILE" "$RELEASE_DIR/apps/$APP_NAME/.env.local"
+
+cd "$RELEASE_DIR"
+
+# =====================================================
+# Install dependencies
+# =====================================================
+npm ci --legacy-peer-deps
+
+# =====================================================
+# Build Next.js (Nx)
+# =====================================================
+echo "🏗 Building Next.js (Nx Monorepo)..."
+NODE_OPTIONS="--max-old-space-size=4096" \
+npx nx build "$APP_NAME" --configuration=production
+
+# =====================================================
+# Validate build
+# =====================================================
+if [ ! -d "dist/apps/$APP_NAME/.next" ]; then
+  echo "❌ Nx build failed (.next missing)"
+  exit 1
+fi
+
+# =====================================================
+# Sync helper (WAIT + RETRY)
+# =====================================================
+sync_to_host() {
+  local HOST="$1"
+  local ATTEMPT=0
+  local MAX_ATTEMPTS=30
+
+  while true; do
+    if rsync -a --delete "$RELEASE_DIR/" \
+      sardevops@$HOST:"$RELEASE_DIR/"; then
+      echo "✅ Sync to $HOST completed"
+      return 0
+    fi
+
+    ATTEMPT=$((ATTEMPT + 1))
+    if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+      echo "❌ $HOST did not come back after $MAX_ATTEMPTS attempts"
+      exit 1
+    fi
+
+    echo "⏳ $HOST unreachable, retrying in 10s ($ATTEMPT/$MAX_ATTEMPTS)..."
+    sleep 10
+  done
+}
+
+# =====================================================
+# Sync build to other frontend servers
+# =====================================================
+for HOST in frontend3 frontend4; do
+  if [ "$HOST" != "$(hostname)" ]; then
+    echo "🔁 Syncing build to $HOST"
+    sync_to_host "$HOST"
+  fi
+done
+
+# =====================================================
+# Atomic switch (ONLY after ALL syncs succeed)
+# =====================================================
+ln -sfn "$RELEASE_DIR" "$CURRENT"
+
+# =====================================================
+# Restart PM2 (Nx dist folder)
+# =====================================================
+pm2 reload "$PM2_NAME" || pm2 start npm \
+  --name "$PM2_NAME" \
+  --cwd "$CURRENT/dist/apps/$APP_NAME" \
+  --update-env \
+  --env production \
+  -- start -- -p "$PORT"
+
+echo "🎉 Sync deploy (Nx) completed successfully"

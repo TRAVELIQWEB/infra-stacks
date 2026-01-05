@@ -1,0 +1,46 @@
+#!/bin/bash
+set -e
+
+APP_NAME="__APP_NAME__"
+ENV="__ENV__"
+PM2_NAME="__PM2_NAME__"
+
+BASE="/var/www/apps/$ENV/$APP_NAME"
+RELEASES="$BASE/releases"
+CURRENT="$BASE/current"
+
+echo "⏪ Rolling back $APP_NAME ($ENV)..."
+
+# Ensure releases directory exists
+if [ ! -d "$RELEASES" ]; then
+  echo "❌ Releases directory not found"
+  exit 1
+fi
+
+# Get current release
+CURRENT_RELEASE=$(readlink "$CURRENT" || true)
+
+if [ -z "$CURRENT_RELEASE" ]; then
+  echo "❌ Current symlink is broken or missing"
+  exit 1
+fi
+
+# Find previous release
+PREVIOUS_RELEASE=$(ls -dt "$RELEASES"/* | grep -v "$CURRENT_RELEASE" | head -n 1)
+
+if [ -z "$PREVIOUS_RELEASE" ]; then
+  echo "❌ No previous release found"
+  exit 1
+fi
+
+echo "🔙 Switching from:"
+echo "   Current : $CURRENT_RELEASE"
+echo "   Previous: $PREVIOUS_RELEASE"
+
+# Atomic rollback
+ln -sfn "$PREVIOUS_RELEASE" "$CURRENT"
+
+# Reload PM2 (app only)
+pm2 reload "$PM2_NAME"
+
+echo "✅ Rollback completed successfully"

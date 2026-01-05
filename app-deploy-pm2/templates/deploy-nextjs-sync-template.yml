@@ -1,0 +1,57 @@
+name: Deploy <APP_NAME> (<ENV> – Next.js Sync)
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: "App name (e.g. rail-frontend)"
+        required: true
+        type: string
+
+      env:
+        description: "Environment (dev / staging / prod)"
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+      build_leader:
+        description: "Select server to BUILD on"
+        required: true
+        type: choice
+        options:
+          - frontend3
+          - frontend4
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.app_name }} (${{ inputs.env }})
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧾 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔐 Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H frontend3 >> ~/.ssh/known_hosts
+          ssh-keyscan -H frontend4 >> ~/.ssh/known_hosts
+
+      - name: 🚀 Trigger deploy on selected build server
+        run: |
+          echo "App        : ${{ inputs.app_name }}"
+          echo "Environment: ${{ inputs.env }}"
+          echo "Build node : ${{ inputs.build_leader }}"
+
+          ssh sardevops@${{ inputs.build_leader }} << EOF
+            echo "Deploy triggered for:"
+            echo "  APP_NAME=${{ inputs.app_name }}"
+            echo "  ENV=${{ inputs.env }}"
+            echo "  BUILD_LEADER=${{ inputs.build_leader }}"
+            # actual deploy command intentionally NOT defined here
+          EOF
