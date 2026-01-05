@@ -1,0 +1,45 @@
+name: Deploy <APP_NAME> (<ENV> – Frontend Sync)
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: "App name (e.g. rail-frontend)"
+        required: true
+        type: string
+
+      env:
+        description: "Environment (dev / staging / prod)"
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.app_name }} (${{ inputs.env }})
+    runs-on: [self-hosted, rail-frontend]
+
+    steps:
+      - name: 🧾 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🖥 Runner info
+        run: |
+          echo "Runner Host : $(hostname -s)"
+          echo "App         : ${{ inputs.app_name }}"
+          echo "Environment : ${{ inputs.env }}"
+
+      - name: 🚀 Deploy (Sync-based)
+        run: |
+          DEPLOY_SCRIPT="/var/www/apps/${{ inputs.env }}/${{ inputs.app_name }}/scripts/deploy.sh"
+
+          if [ ! -x "$DEPLOY_SCRIPT" ]; then
+            echo "❌ Deploy script not found: $DEPLOY_SCRIPT"
+            exit 1
+          fi
+
+          echo "▶ Running deploy script"
+          $DEPLOY_SCRIPT

@@ -1,31 +1,55 @@
 #!/bin/bash
 set -e
 
+# =====================================================
+# Required variables (replaced by setup script)
+# =====================================================
 APP_NAME="__APP_NAME__"
 ENV="__ENV__"
 PM2_NAME="__PM2_NAME__"
 
+# =====================================================
+# 🔒 DEPLOY / ROLLBACK LOCK (SAME AS DEPLOY)
+# =====================================================
+LOCK_FILE="/var/lock/${APP_NAME}-${ENV}-deploy.lock"
+
+exec 9>"$LOCK_FILE" || exit 1
+echo "⏳ Waiting for deploy lock..."
+flock 9
+echo "🔓 Lock acquired"
+
+# =====================================================
+# Paths
+# =====================================================
 BASE="/var/www/apps/$ENV/$APP_NAME"
 RELEASES="$BASE/releases"
 CURRENT="$BASE/current"
 
 echo "⏪ Rolling back $APP_NAME ($ENV)..."
 
-# Ensure releases directory exists
+# =====================================================
+# Safety checks
+# =====================================================
 if [ ! -d "$RELEASES" ]; then
   echo "❌ Releases directory not found"
   exit 1
 fi
 
-# Get current release
-CURRENT_RELEASE=$(readlink "$CURRENT" || true)
-
-if [ -z "$CURRENT_RELEASE" ]; then
-  echo "❌ Current symlink is broken or missing"
+if [ ! -L "$CURRENT" ]; then
+  echo "❌ Current is not a symlink"
   exit 1
 fi
 
+CURRENT_RELEASE=$(readlink "$CURRENT")
+
+if [ -z "$CURRENT_RELEASE" ]; then
+  echo "❌ Current release not detected"
+  exit 1
+fi
+
+# =====================================================
 # Find previous release
+# =====================================================
 PREVIOUS_RELEASE=$(ls -dt "$RELEASES"/* | grep -v "$CURRENT_RELEASE" | head -n 1)
 
 if [ -z "$PREVIOUS_RELEASE" ]; then
@@ -33,14 +57,18 @@ if [ -z "$PREVIOUS_RELEASE" ]; then
   exit 1
 fi
 
-echo "🔙 Switching from:"
+echo "🔙 Switching release:"
 echo "   Current : $CURRENT_RELEASE"
 echo "   Previous: $PREVIOUS_RELEASE"
 
+# =====================================================
 # Atomic rollback
+# =====================================================
 ln -sfn "$PREVIOUS_RELEASE" "$CURRENT"
 
-# Reload PM2 (app only)
+# =====================================================
+# Restart PM2
+# =====================================================
 pm2 reload "$PM2_NAME"
 
 echo "✅ Rollback completed successfully"

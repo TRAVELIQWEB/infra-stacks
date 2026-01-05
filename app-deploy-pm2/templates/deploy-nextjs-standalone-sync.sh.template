@@ -2,7 +2,7 @@
 set -e
 
 # =====================================================
-# Required variables (will be replaced by setup script)
+# Required variables (replaced by setup script)
 # =====================================================
 APP_NAME="__APP_NAME__"
 ENV="__ENV__"
@@ -28,6 +28,18 @@ CURRENT="$BASE/current"
 ENV_FILE="$BASE/env/.env"
 
 # =====================================================
+# Load ENV (SYNC_HOSTS etc.)
+# =====================================================
+if [ ! -f "$ENV_FILE" ]; then
+  echo "❌ Env file not found: $ENV_FILE"
+  exit 1
+fi
+
+set -a
+source "$ENV_FILE"
+set +a
+
+# =====================================================
 # Build metadata
 # =====================================================
 BUILD_ID=$(date +%Y%m%d-%H%M%S)
@@ -38,14 +50,6 @@ echo "📦 App : $APP_NAME"
 echo "🌍 Env : $ENV"
 echo "🆔 Build: $BUILD_ID"
 
-# =====================================================
-# Safety checks
-# =====================================================
-if [ ! -f "$ENV_FILE" ]; then
-  echo "❌ Env file not found: $ENV_FILE"
-  exit 1
-fi
-
 mkdir -p "$RELEASE_DIR"
 
 # =====================================================
@@ -53,6 +57,7 @@ mkdir -p "$RELEASE_DIR"
 # =====================================================
 /opt/github-app/gh-clone.sh "__GIT_REPO__" "$RELEASE_DIR" "$ENV"
 
+# Copy env
 cp "$ENV_FILE" "$RELEASE_DIR/.env.local"
 
 cd "$RELEASE_DIR"
@@ -65,7 +70,6 @@ npm ci --legacy-peer-deps
 # =====================================================
 # Build Next.js (standalone)
 # =====================================================
-echo "🏗 Building Next.js (standalone)..."
 NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 if [ ! -d ".next" ]; then
@@ -74,7 +78,7 @@ if [ ! -d ".next" ]; then
 fi
 
 # =====================================================
-# Sync helper (WAIT + RETRY)
+# Sync helper
 # =====================================================
 sync_to_host() {
   local HOST="$1"
@@ -83,35 +87,39 @@ sync_to_host() {
 
   while true; do
     if rsync -a --delete "$RELEASE_DIR/" \
-      sardevops@$HOST:"$RELEASE_DIR/"; then
-      echo "✅ Sync to $HOST completed"
+      sardevops@"$HOST":"$RELEASE_DIR/"; then
+      echo "✅ Synced to $HOST"
       return 0
     fi
 
     ATTEMPT=$((ATTEMPT + 1))
     if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
-      echo "❌ $HOST did not come back after $MAX_ATTEMPTS attempts"
+      echo "❌ $HOST unreachable"
       exit 1
     fi
 
-    echo "⏳ $HOST unreachable, retrying in 10s ($ATTEMPT/$MAX_ATTEMPTS)..."
     sleep 10
   done
 }
 
 # =====================================================
-# Sync build to other frontend servers
+# Sync to other servers (dynamic)
 # =====================================================
-for HOST in frontend3 frontend4; do
-  if [ "$HOST" != "$(hostname)" ]; then
-    echo "🔁 Syncing build to $HOST"
-    sync_to_host "$HOST"
-  fi
-done
+if [ -n "$SYNC_HOSTS" ]; then
+  for HOST in $SYNC_HOSTS; do
+    if [ "$HOST" != "$(hostname -s)" ]; then
+      sync_to_host "$HOST"
+    fi
+  done
+fi
 
 # =====================================================
-# Atomic switch (ONLY after ALL syncs succeed)
+# Atomic switch
 # =====================================================
+if [ -d "$CURRENT" ] && [ ! -L "$CURRENT" ]; then
+  rm -rf "$CURRENT"
+fi
+
 ln -sfn "$RELEASE_DIR" "$CURRENT"
 
 # =====================================================
@@ -124,4 +132,4 @@ pm2 reload "$PM2_NAME" || pm2 start npm \
   --env production \
   -- start -- -p "$PORT"
 
-echo "🎉 Sync deploy (Next.js Standalone) completed successfully"
+echo "🎉 Sync deploy (Next.js Standalone) completed"
