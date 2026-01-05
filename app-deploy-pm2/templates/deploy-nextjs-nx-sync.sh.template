@@ -65,7 +65,7 @@ cd "$RELEASE_DIR"
 # =====================================================
 # Install dependencies
 # =====================================================
-npm ci --legacy-peer-deps
+NODE_ENV=development npm ci --legacy-peer-deps
 
 # =====================================================
 # Build
@@ -103,6 +103,25 @@ sync_to_host() {
   done
 }
 
+reload_remote_pm2() {
+  local HOST="$1"
+
+  echo "🔄 Reloading PM2 on $HOST"
+
+  ssh sardevops@"$HOST" "
+    set -e
+    cd /var/www/apps/$ENV/$APP_NAME
+    if [ -x scripts/reload-pm2.sh ]; then
+      bash scripts/reload-pm2.sh
+    else
+      echo '❌ reload-pm2.sh not found on $HOST'
+      exit 1
+    fi
+  "
+
+  echo "✅ PM2 reloaded on $HOST"
+}
+
 # =====================================================
 # Sync to other servers (dynamic)
 # =====================================================
@@ -124,13 +143,20 @@ fi
 ln -sfn "$RELEASE_DIR" "$CURRENT"
 
 # =====================================================
-# Restart PM2
+# Reload PM2 on leader
 # =====================================================
-pm2 reload "$PM2_NAME" || pm2 start npm \
-  --name "$PM2_NAME" \
-  --cwd "$CURRENT/dist/apps/$APP_NAME" \
-  --update-env \
-  --env production \
-  -- start -- -p "$PORT"
+bash "$BASE/scripts/reload-pm2.sh"
+
+# =====================================================
+# Reload PM2 on synced servers
+# =====================================================
+if [ -n "$SYNC_HOSTS" ]; then
+  for HOST in $SYNC_HOSTS; do
+    if [ "$HOST" != "$(hostname -s)" ]; then
+      reload_remote_pm2 "$HOST"
+    fi
+  done
+fi
+
 
 echo "🎉 Sync deploy completed"

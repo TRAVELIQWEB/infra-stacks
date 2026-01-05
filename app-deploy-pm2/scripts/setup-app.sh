@@ -90,6 +90,7 @@
   ENV_FILE="$ENV_DIR_PATH/.env"
   DEPLOY_FILE="$SCRIPT_DIR_PATH/deploy.sh"
   ROLLBACK_FILE="$SCRIPT_DIR_PATH/rollback.sh"
+  RELOAD_PM2_FILE="$SCRIPT_DIR_PATH/reload-pm2.sh"
 
 
 
@@ -175,6 +176,33 @@
     "$DEPLOY_TEMPLATE" > "$DEPLOY_FILE"
 
   chmod +x "$DEPLOY_FILE"
+
+  ###############################################
+  # 6.1) GENERATE reload-pm2.sh (ONLY FOR SYNC APPS)
+  ###############################################
+  if [[ "$APP_TYPE" == "4" || "$APP_TYPE" == "5" ]]; then
+
+    case "$APP_TYPE" in
+      4)
+        RELOAD_TEMPLATE="$TEMPLATE_DIR/reload-pm2-next-standalone.sh.template"
+        ;;
+      5)
+        RELOAD_TEMPLATE="$TEMPLATE_DIR/reload-pm2-next-nx.sh.template"
+        ;;
+    esac
+
+    sed \
+      -e "s|__APP_NAME__|$APP_NAME|g" \
+      -e "s|__PM2_NAME__|$PM2_NAME|g" \
+      -e "s|__PORT__|$PORT|g" \
+      -e "s|__ENV__|$ENV|g" \
+      "$RELOAD_TEMPLATE" > "$RELOAD_PM2_FILE"
+
+    chmod +x "$RELOAD_PM2_FILE"
+
+    echo "🔁 PM2 reload script created: $RELOAD_PM2_FILE"
+  fi
+
 
   ###############################################
   # 7) GENERATE rollback.sh
