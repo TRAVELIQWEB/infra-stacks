@@ -133,14 +133,7 @@ if [ -n "$SYNC_HOSTS" ]; then
   done
 fi
 
-# =====================================================
-# Atomic switch
-# =====================================================
-if [ -d "$CURRENT" ] && [ ! -L "$CURRENT" ]; then
-  rm -rf "$CURRENT"
-fi
 
-ln -sfn "$RELEASE_DIR" "$CURRENT"
 
 # =====================================================
 # Reload PM2 on leader
