@@ -86,8 +86,12 @@ sync_to_host() {
   local MAX_ATTEMPTS=30
 
   while true; do
-    if rsync -a --delete "$RELEASE_DIR/" \
-      sardevops@"$HOST":"$RELEASE_DIR/"; then
+    if rsync -a --delete \
+  "$RELEASE_DIR/.next/" \
+  "$RELEASE_DIR/public/" \
+  "$RELEASE_DIR/package.json" \
+  "$RELEASE_DIR/package-lock.json" \
+  sardevops@"$HOST":"$RELEASE_DIR/"; then
       echo "✅ Synced to $HOST"
       return 0
     fi
