@@ -86,26 +86,21 @@ sync_to_host() {
   local ATTEMPT=0
   local MAX_ATTEMPTS=30
 
-while true; do
-  if rsync -a --delete \
-    "$RELEASE_DIR/dist/apps/$APP_NAME/.next/" \
-    "$RELEASE_DIR/dist/apps/$APP_NAME/public/" \
-    "$RELEASE_DIR/dist/apps/$APP_NAME/package.json" \
-    "$RELEASE_DIR/dist/apps/$APP_NAME/package-lock.json" \
-    sardevops@"$HOST":"$RELEASE_DIR/dist/apps/$APP_NAME/"; then
+  while true; do
+    if rsync -a --delete "$RELEASE_DIR/" \
+      sardevops@"$HOST":"$RELEASE_DIR/"; then
+      echo "✅ Synced to $HOST"
+      return 0
+    fi
 
-    echo "✅ Synced to $HOST"
-    return 0
-  fi
+    ATTEMPT=$((ATTEMPT + 1))
+    if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+      echo "❌ $HOST unreachable"
+      exit 1
+    fi
 
-  ATTEMPT=$((ATTEMPT + 1))
-  if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
-    echo "❌ $HOST unreachable"
-    exit 1
-  fi
-
-  sleep 10
-done
+    sleep 10
+  done
 }
 
 reload_remote_pm2() {
