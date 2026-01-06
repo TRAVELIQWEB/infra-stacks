@@ -9,7 +9,7 @@ ENV="__ENV__"
 PM2_NAME="__PM2_NAME__"
 
 # =====================================================
-# 🔒 DEPLOY / ROLLBACK LOCK (SAME AS DEPLOY)
+# 🔒 DEPLOY / ROLLBACK LOCK
 # =====================================================
 LOCK_FILE="/var/lock/${APP_NAME}-${ENV}-deploy.lock"
 
@@ -25,7 +25,8 @@ BASE="/var/www/apps/$ENV/$APP_NAME"
 RELEASES="$BASE/releases"
 CURRENT="$BASE/current"
 
-echo "⏪ Rolling back $APP_NAME ($ENV)..."
+echo "⏪ Rollback: $APP_NAME ($ENV)"
+echo
 
 # =====================================================
 # Safety checks
@@ -48,27 +49,81 @@ if [ -z "$CURRENT_RELEASE" ]; then
 fi
 
 # =====================================================
-# Find previous release
+# Collect releases
 # =====================================================
-PREVIOUS_RELEASE=$(ls -dt "$RELEASES"/* | grep -v "$CURRENT_RELEASE" | head -n 1)
+mapfile -t RELEASE_LIST < <(ls -dt "$RELEASES"/*)
 
-if [ -z "$PREVIOUS_RELEASE" ]; then
-  echo "❌ No previous release found"
+if [ "${#RELEASE_LIST[@]}" -lt 2 ]; then
+  echo "❌ Not enough releases to rollback"
   exit 1
 fi
 
-echo "🔙 Switching release:"
-echo "   Current : $CURRENT_RELEASE"
-echo "   Previous: $PREVIOUS_RELEASE"
+# =====================================================
+# Show releases
+# =====================================================
+echo "📦 Available releases:"
+echo
+
+for i in "${!RELEASE_LIST[@]}"; do
+  RELEASE="${RELEASE_LIST[$i]}"
+  INDEX=$((i + 1))
+
+  if [ "$RELEASE" = "$CURRENT_RELEASE" ]; then
+    echo "  [$INDEX] $(basename "$RELEASE")   ← CURRENT"
+  else
+    echo "  [$INDEX] $(basename "$RELEASE")"
+  fi
+done
+
+echo
+read -rp "👉 Enter release number to rollback to: " SELECT_CHOICE
+
+# =====================================================
+# Validate selection
+# =====================================================
+if ! [[ "$SELECT_CHOICE" =~ ^[0-9]+$ ]]; then
+  echo "❌ Invalid input"
+  exit 1
+fi
+
+SELECTED_INDEX=$((SELECT_CHOICE - 1))
+
+if [ "$SELECTED_INDEX" -lt 0 ] || [ "$SELECTED_INDEX" -ge "${#RELEASE_LIST[@]}" ]; then
+  echo "❌ Selection out of range"
+  exit 1
+fi
+
+TARGET_RELEASE="${RELEASE_LIST[$SELECTED_INDEX]}"
+
+if [ "$TARGET_RELEASE" = "$CURRENT_RELEASE" ]; then
+  echo "❌ Selected release is already current"
+  exit 1
+fi
+
+# =====================================================
+# Confirm
+# =====================================================
+echo
+echo "⚠️  Confirm rollback:"
+echo "   From: $(basename "$CURRENT_RELEASE")"
+echo "   To  : $(basename "$TARGET_RELEASE")"
+echo
+read -rp "Type 'yes' to continue: " CONFIRM
+
+if [ "$CONFIRM" != "yes" ]; then
+  echo "❌ Rollback cancelled"
+  exit 1
+fi
 
 # =====================================================
 # Atomic rollback
 # =====================================================
-ln -sfn "$PREVIOUS_RELEASE" "$CURRENT"
+ln -sfn "$TARGET_RELEASE" "$CURRENT"
 
 # =====================================================
 # Restart PM2
 # =====================================================
 pm2 reload "$PM2_NAME"
 
+echo
 echo "✅ Rollback completed successfully"
