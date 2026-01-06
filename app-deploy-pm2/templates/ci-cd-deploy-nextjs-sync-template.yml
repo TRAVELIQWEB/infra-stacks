@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       app_name:
-        description: "App name (e.g. rail-frontend)"
+        description: "App name (e.g. rail-frontend / air-frontend)"
         required: true
         type: string
 
       env:
-        description: "Environment (dev / staging / prod)"
+        description: "Environment"
         required: true
         type: choice
         options:
@@ -20,7 +20,7 @@ on:
 jobs:
   deploy:
     name: Deploy ${{ inputs.app_name }} (${{ inputs.env }})
-    runs-on: [self-hosted, rail-frontend]
+    runs-on: [self-hosted, frontend-sync]
 
     steps:
       - name: 🧾 Checkout repository
@@ -32,7 +32,7 @@ jobs:
           echo "App         : ${{ inputs.app_name }}"
           echo "Environment : ${{ inputs.env }}"
 
-      - name: 🚀 Deploy (Sync-based)
+      - name: 🚀 Run Sync Deploy
         run: |
           DEPLOY_SCRIPT="/var/www/apps/${{ inputs.env }}/${{ inputs.app_name }}/scripts/deploy.sh"
 
@@ -42,4 +42,4 @@ jobs:
           fi
 
           echo "▶ Running deploy script"
-          $DEPLOY_SCRIPT
+          bash "$DEPLOY_SCRIPT"

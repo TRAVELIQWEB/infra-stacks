@@ -93,6 +93,18 @@ The script will ask:
 
 ---
 
+
+## **5️⃣ DO THIS ON EACH TO CONNECT WITH OTHER (ONLY FOR SYNC DEPLOY )
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
+
+ssh-copy-id sardevops@frontend3
+
+ssh frontend3 hostname
+
+```
+--------------
+
 ## **3️⃣ Add Dockerfile + .dockerignore to Your App Repo**
 
 Templates available in:
@@ -185,6 +197,7 @@ cd /var/www/apps/dev/wallet-frontend/
 ```
 
 ---
+
 
 # 🧩 FAQ
 

@@ -36,4 +36,27 @@ pm2 reload "$PM2_NAME" || pm2 start npm \
   -- start -- -p "$PORT"
 
 pm2 save
+
+# =====================================================
+# Cleanup old releases (keep last 3)
+# =====================================================
+echo "🧹 Cleaning old releases (keeping last 3)"
+
+cd "$RELEASES"
+
+CURRENT_REAL=$(readlink "$CURRENT")
+
+ls -1dt */ | tail -n +4 | while read -r OLD; do
+  OLD_PATH="$RELEASES/${OLD%/}"
+
+  # never delete current
+  if [ "$OLD_PATH" = "$CURRENT_REAL" ]; then
+    continue
+  fi
+
+  echo "🗑 Removing old release: $OLD_PATH"
+  rm -rf "$OLD_PATH"
+done
+
+
 echo "✅ Nx Next.js ready on $(hostname)"
