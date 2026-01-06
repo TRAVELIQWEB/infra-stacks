@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+
+#rollback-nextjs-sync.sh.template
 # =====================================================
 # Required variables (replaced by setup script)
 # =====================================================
@@ -121,9 +123,15 @@ fi
 ln -sfn "$TARGET_RELEASE" "$CURRENT"
 
 # =====================================================
-# Restart PM2
+# Reload via standard reload script
 # =====================================================
-pm2 reload "$PM2_NAME"
+RELOAD_SCRIPT="$BASE/scripts/reload-pm2.sh"
 
+if [ ! -x "$RELOAD_SCRIPT" ]; then
+  echo "❌ reload-pm2.sh not found or not executable"
+  exit 1
+fi
+
+"$RELOAD_SCRIPT" "$TARGET_RELEASE"
 echo
 echo "✅ Rollback completed successfully"

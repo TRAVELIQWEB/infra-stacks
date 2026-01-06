@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
+TARGET_RELEASE="$1"
 APP_NAME="__APP_NAME__"
 ENV="__ENV__"
 PM2_NAME="__PM2_NAME__"
@@ -12,13 +13,20 @@ CURRENT="$BASE/current"
 
 echo "🔄 Reloading Nx Next.js on $(hostname)"
 
-LATEST_RELEASE=$(ls -1dt "$RELEASES"/* | head -n 1)
+if [ -n "$TARGET_RELEASE" ]; then
+  RELEASE="$TARGET_RELEASE"
+else
+  RELEASE=$(ls -1dt "$RELEASES"/* | head -n 1)
+fi
 
-[ -z "$LATEST_RELEASE" ] && exit 1
-[ ! -f "$LATEST_RELEASE/dist/apps/$APP_NAME/package.json" ] && exit 1
+[ -z "$RELEASE" ] && exit 1
+[ ! -d "$RELEASE" ] && exit 1
+
+
+[ ! -f "$RELEASE/dist/apps/$APP_NAME/package.json" ] && exit 1
 
 rm -rf "$CURRENT"
-ln -sfn "$LATEST_RELEASE" "$CURRENT"
+ln -sfn "$RELEASE" "$CURRENT"
 
 pm2 reload "$PM2_NAME" || pm2 start npm \
   --name "$PM2_NAME" \

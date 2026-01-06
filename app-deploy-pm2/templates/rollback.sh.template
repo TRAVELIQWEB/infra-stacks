@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+#rollback.sh.template
 APP_NAME="__APP_NAME__"
 ENV="__ENV__"
 

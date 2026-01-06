@@ -204,13 +204,29 @@
   fi
 
 
+
   ###############################################
-  # 7) GENERATE rollback.sh
+  # 7) GENERATE rollback.sh (APP TYPE AWARE)
   ###############################################
-  sed \
-    -e "s|__APP_NAME__|$APP_NAME|g" \
-    -e "s|__ENV__|$ENV|g" \
-    "$TEMPLATE_DIR/rollback.sh.template" > "$ROLLBACK_FILE"
+  if [[ "$APP_TYPE" == "4" || "$APP_TYPE" == "5" ]]; then
+    # Sync-based rollback (releases + symlink)
+    ROLLBACK_TEMPLATE="$TEMPLATE_DIR/rollback-nextjs-sync.sh.template"
+
+    sed \
+      -e "s|__APP_NAME__|$APP_NAME|g" \
+      -e "s|__ENV__|$ENV|g" \
+      -e "s|__PM2_NAME__|$PM2_NAME|g" \
+      "$ROLLBACK_TEMPLATE" > "$ROLLBACK_FILE"
+
+  else
+    # Simple rollback (backup restore)
+    ROLLBACK_TEMPLATE="$TEMPLATE_DIR/rollback-simple.sh.template"
+
+    sed \
+      -e "s|__APP_NAME__|$APP_NAME|g" \
+      -e "s|__ENV__|$ENV|g" \
+      "$ROLLBACK_TEMPLATE" > "$ROLLBACK_FILE"
+  fi
 
   chmod +x "$ROLLBACK_FILE"
 
