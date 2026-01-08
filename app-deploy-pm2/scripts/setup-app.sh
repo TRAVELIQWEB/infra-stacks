@@ -220,7 +220,7 @@
 
   else
     # Simple rollback (backup restore)
-    ROLLBACK_TEMPLATE="$TEMPLATE_DIR/rollback-simple.sh.template"
+    ROLLBACK_TEMPLATE="$TEMPLATE_DIR/rollback.sh.template"
 
     sed \
       -e "s|__APP_NAME__|$APP_NAME|g" \
