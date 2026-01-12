@@ -30,33 +30,37 @@ if [[ -z "$SENTINEL_PASSWORD" ]]; then
   exit 1
 fi
 
+###############################################
+# Detect NetBird Private IP (10.50.x.x)
+###############################################
+LOCAL_IP=$(hostname -I | tr ' ' '\n' | grep '^10\.50\.' | head -n1)
 
-CONF_DIR="/opt/redis-sentinel"
-CONF_FILE="${CONF_DIR}/sentinel-${SENTINEL_PORT}.conf"
-safe_mkdir "$CONF_DIR"
+export LOCAL_IP
 
+if [[ -z "$LOCAL_IP" ]]; then
+  error "❌ Could not detect NetBird IP (10.50.x.x)."
+  exit 1
+fi
+
+
+
+DATA_DIR="/opt/redis-sentinel/data-${SENTINEL_PORT}"
+CONF_FILE="${DATA_DIR}/sentinel.conf"
+
+safe_mkdir "$DATA_DIR"
 # -------------------------------
 # BASE TEMPLATE
 # -------------------------------
 
 env SENTINEL_PORT="$SENTINEL_PORT" \
     SENTINEL_PASSWORD="$SENTINEL_PASSWORD" \
+    LOCAL_IP="$LOCAL_IP" \
     envsubst < "$TEMPLATE_DIR/sentinel.conf.tpl" > "$CONF_FILE"
-
 
 info ""
 info "🛰  Scanning Redis clusters under /opt/redis-stack-* ..."
 info ""
 
-###############################################
-# Detect NetBird Private IP (10.50.x.x)
-###############################################
-LOCAL_IP=$(hostname -I | tr ' ' '\n' | grep '^10\.50\.' | head -n1)
-
-if [[ -z "$LOCAL_IP" ]]; then
-  error "❌ Could not detect NetBird IP (10.50.x.x)."
-  exit 1
-fi
 
 # -------------------------------
 # SCAN REDIS INSTANCES
@@ -116,8 +120,6 @@ info "✔ Sentinel config generated successfully at: $CONF_FILE"
 # -------------------------------
 TMP_ENV="/tmp/sentinel-${SENTINEL_PORT}.env"
 echo "SENTINEL_PORT=$SENTINEL_PORT" > "$TMP_ENV"
-echo "CONF_FILE=$CONF_FILE" >> "$TMP_ENV"
-
 info "▶ Starting Sentinel Docker container..."
 
 docker compose \

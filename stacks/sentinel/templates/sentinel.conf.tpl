@@ -17,6 +17,9 @@ daemonize no
 # Data directory
 dir /data
 
+sentinel announce-ip ${LOCAL_IP}
+sentinel announce-port ${SENTINEL_PORT}
+
 ###############################################
 # NOTE:
 # - Actual cluster monitor lines are appended

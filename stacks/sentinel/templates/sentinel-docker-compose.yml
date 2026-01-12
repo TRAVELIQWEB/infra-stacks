@@ -4,11 +4,11 @@ services:
     container_name: "redis-sentinel-${SENTINEL_PORT}"
     restart: unless-stopped
 
-    command: ["redis-sentinel", "/etc/redis/sentinel.conf"]
+    command: ["redis-sentinel", "/data/sentinel.conf"]
 
     ports:
       - "${SENTINEL_PORT}:${SENTINEL_PORT}"
 
     volumes:
-      - "${CONF_FILE}:/etc/redis/sentinel.conf"
+      # - "${CONF_FILE}:/etc/redis/sentinel.conf"
       - "/opt/redis-sentinel/data-${SENTINEL_PORT}:/data"
