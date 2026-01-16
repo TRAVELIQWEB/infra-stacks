@@ -105,8 +105,8 @@ for INSTANCE_DIR in /opt/redis-stack-*; do
 # ---- CLUSTER $PORT ----
 sentinel monitor redis-${PORT} ${TARGET_IP} ${TARGET_PORT} 2
 sentinel auth-pass redis-${PORT} ${PASS}
-sentinel down-after-milliseconds redis-${PORT} 50000
-sentinel failover-timeout redis-${PORT} 300000
+sentinel down-after-milliseconds redis-${PORT} 15000
+sentinel failover-timeout redis-${PORT} 90000
 sentinel parallel-syncs redis-${PORT} 1
 
 EOF
