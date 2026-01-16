@@ -25,20 +25,22 @@ fi
 DISK_PATH=$(ask "Disk path to monitor (default /):")
 [[ -z "$DISK_PATH" ]] && DISK_PATH="/"
 
-THRESHOLD=$(ask "Alert threshold % (default 85):")
+THRESHOLD=$(ask "Alert threshold % (can be below current for testing, default 85):")
 [[ -z "$THRESHOLD" ]] && THRESHOLD=85
 
-if ! [[ "$THRESHOLD" =~ ^[0-9]+$ ]] || (( THRESHOLD < 1 || THRESHOLD > 99 )); then
-  error "Invalid threshold. Enter a value between 1 and 99."
+if ! [[ "$THRESHOLD" =~ ^[0-9]+$ ]] || (( THRESHOLD < 0 || THRESHOLD > 99 )); then
+  error "Invalid threshold. Enter a value between 0 and 99."
   exit 1
 fi
 
-info "Enter cron interval in MINUTES only (5–50)"
+info "⚠️  You may set threshold below current usage to TEST mail alerts."
+
+info "Enter cron interval in MINUTES only (1–50)"
 CRON_MIN=$(ask "Run every how many minutes? (default 5):")
 [[ -z "$CRON_MIN" ]] && CRON_MIN=5
 
-if ! [[ "$CRON_MIN" =~ ^[0-9]+$ ]] || (( CRON_MIN < 5 || CRON_MIN > 50 )); then
-  error "Invalid minute value. Enter between 5 and 50."
+if ! [[ "$CRON_MIN" =~ ^[0-9]+$ ]] || (( CRON_MIN < 1 || CRON_MIN > 50 )); then
+  error "Invalid minute value. Enter between 1 and 50."
   exit 1
 fi
 
@@ -58,13 +60,15 @@ sudo chmod +x "$SCRIPT_INSTALL_PATH"
 
 USAGE=$(df -P "$DISK_PATH" | awk 'NR==2 {gsub("%",""); print $5}')
 
+info "Current disk usage: ${USAGE}%"
+
 if (( USAGE >= THRESHOLD )); then
-  MSG="Disk usage is ${USAGE}% on path ${DISK_PATH}"
+  MSG="Disk usage is ${USAGE}% on path ${DISK_PATH} (threshold ${THRESHOLD}%)"
 
   error "$MSG"
   send_mail "🚨 Disk Usage Alert" "$MSG"
 else
-  success "Disk usage OK: ${USAGE}%"
+  success "Disk usage OK: ${USAGE}% (threshold ${THRESHOLD}%)"
 fi
 
 #############################################

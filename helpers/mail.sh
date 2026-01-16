@@ -7,17 +7,18 @@ send_mail() {
   hostname="$(hostname)"
 
   [[ ! -f /etc/infra-alert-email ]] && return 0
-  [[ ! -x "$(command -v msmtp)" ]] && return 0
+  [[ ! -f /etc/msmtprc ]] && return 0
+  command -v msmtp >/dev/null 2>&1 || return 0
 
   local TO
-  TO=$(cat /etc/infra-alert-email)
+  TO="$(cat /etc/infra-alert-email)"
 
   {
     echo "Subject: ${subject} [${hostname}]"
     echo ""
-    echo "Host    : ${hostname}"
-    echo "Time    : $(date)"
+    echo "Host : ${hostname}"
+    echo "Time : $(date)"
     echo ""
     echo "$body"
-  } | msmtp "$TO"
+  } | msmtp --config=/etc/msmtprc "$TO"
 }
