@@ -13,7 +13,7 @@ DISK_PATH="/"
 info "🧯 Disk Emergency Rescue Release"
 
 #############################################
-# Check rescue file exists
+# Must run as root
 #############################################
 
 if [[ "$EUID" -ne 0 ]]; then
@@ -21,6 +21,10 @@ if [[ "$EUID" -ne 0 ]]; then
   error "Run: sudo helpers/system/disk-rescue-release.sh"
   exit 1
 fi
+
+#############################################
+# Check rescue file exists
+#############################################
 
 if [[ ! -f "$RESCUE_FILE" ]]; then
   info "No rescue file found at $RESCUE_FILE"
@@ -48,8 +52,8 @@ info "• Free : ${FREE_GB} GB"
 # Confirm action
 #############################################
 
-warn "This will DELETE the disk rescue file and FREE space."
-warn "Use this ONLY when disk is FULL or system is unstable."
+info "⚠️  This will DELETE the disk rescue file and FREE space."
+info "⚠️  Use this ONLY when disk is FULL or system is unstable."
 
 CONFIRM=$(ask "Type YES to confirm release:")
 
@@ -63,7 +67,7 @@ fi
 #############################################
 
 info "Releasing disk rescue space..."
-sudo rm -f "$RESCUE_FILE"
+rm -f "$RESCUE_FILE"
 
 #############################################
 # Disk stats AFTER
@@ -81,3 +85,5 @@ success "Disk rescue space released successfully"
 info "Disk usage AFTER release:"
 info "• Used : ${USED_GB_AFTER} GB (${USED_PCT_AFTER})"
 info "• Free : ${FREE_GB_AFTER} GB"
+
+exit 0
