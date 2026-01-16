@@ -19,15 +19,36 @@ if ! command -v msmtp &>/dev/null; then
 fi
 
 #############################################
+# Check existing config
+#############################################
+if [[ -f /etc/msmtprc ]]; then
+  info "Existing mail configuration detected at /etc/msmtprc"
+
+  CONFIRM=$(ask "Do you want to overwrite existing mail config? (yes/no):")
+
+  if [[ "${CONFIRM,,}" != "yes" ]]; then
+    info "Keeping existing mail configuration. Exiting."
+    exit 0
+  fi
+
+  info "Overwriting existing mail configuration..."
+fi
+
+#############################################
 # Ask SMTP details
 #############################################
 
 SMTP_HOST=$(ask "SMTP host (e.g. smtp.gmail.com):")
+
 SMTP_PORT=$(ask "SMTP port (default 587):")
 [[ -z "$SMTP_PORT" ]] && SMTP_PORT=587
 
 SMTP_USER=$(ask "SMTP username:")
-SMTP_PASS=$(ask_secret "SMTP password:")
+
+# --- secure password input (no echo) ---
+read -s -p "SMTP password: " SMTP_PASS
+echo ""
+
 MAIL_FROM=$(ask "From email address:")
 MAIL_TO=$(ask "Alert recipient email:")
 
@@ -72,5 +93,5 @@ sudo chown root:root /etc/msmtprc
 
 echo "$MAIL_TO" | sudo tee /etc/infra-alert-email >/dev/null
 
-success "Mail setup completed"
+success "Mail setup completed successfully"
 success "Alerts will be sent to: $MAIL_TO"
