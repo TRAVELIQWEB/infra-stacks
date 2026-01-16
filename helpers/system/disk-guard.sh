@@ -28,6 +28,11 @@ DISK_PATH=$(ask "Disk path to monitor (default /):")
 THRESHOLD=$(ask "Alert threshold % (default 85):")
 [[ -z "$THRESHOLD" ]] && THRESHOLD=85
 
+if ! [[ "$THRESHOLD" =~ ^[0-9]+$ ]] || (( THRESHOLD < 1 || THRESHOLD > 99 )); then
+  error "Invalid threshold. Enter a value between 1 and 99."
+  exit 1
+fi
+
 info "Enter cron interval in MINUTES only (5–50)"
 CRON_MIN=$(ask "Run every how many minutes? (default 5):")
 [[ -z "$CRON_MIN" ]] && CRON_MIN=5
@@ -40,7 +45,7 @@ fi
 SCRIPT_INSTALL_PATH="/usr/local/bin/disk-guard.sh"
 
 #############################################
-# Install script
+# Install / update script
 #############################################
 
 info "Installing disk guard to $SCRIPT_INSTALL_PATH"
@@ -48,7 +53,7 @@ sudo cp "$0" "$SCRIPT_INSTALL_PATH"
 sudo chmod +x "$SCRIPT_INSTALL_PATH"
 
 #############################################
-# Disk check
+# Immediate disk check
 #############################################
 
 USAGE=$(df -P "$DISK_PATH" | awk 'NR==2 {gsub("%",""); print $5}')
@@ -63,18 +68,34 @@ else
 fi
 
 #############################################
-# Cron setup (idempotent)
+# Cron setup (ask before overwrite)
 #############################################
 
 CRON_LINE="*/${CRON_MIN} * * * * $SCRIPT_INSTALL_PATH"
+EXISTING_CRON=$(sudo crontab -l 2>/dev/null | grep "$SCRIPT_INSTALL_PATH" || true)
 
-if ! sudo crontab -l 2>/dev/null | grep -Fq "$SCRIPT_INSTALL_PATH"; then
-  info "Installing cron job..."
-  (
-    sudo crontab -l 2>/dev/null
-    echo "$CRON_LINE"
-  ) | sudo crontab -
-  success "Cron installed: $CRON_LINE"
+if [[ -n "$EXISTING_CRON" ]]; then
+  info "Disk guard cron already exists:"
+  info "$EXISTING_CRON"
+
+  CONFIRM=$(ask "Do you want to overwrite this cron? (yes/no):")
+
+  if [[ "${CONFIRM,,}" != "yes" ]]; then
+    info "Keeping existing cron. No changes made."
+    exit 0
+  fi
+
+  info "Overwriting existing disk-guard cron..."
 else
-  success "Cron already exists"
+  info "No existing disk-guard cron found. Installing new one..."
 fi
+
+(
+  sudo crontab -l 2>/dev/null | grep -v "$SCRIPT_INSTALL_PATH"
+  echo "$CRON_LINE"
+) | sudo crontab -
+
+success "Disk guard cron is now set to:"
+success "$CRON_LINE"
+
+exit 0
