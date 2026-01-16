@@ -16,6 +16,12 @@ info "🧯 Disk Emergency Rescue Release"
 # Check rescue file exists
 #############################################
 
+if [[ "$EUID" -ne 0 ]]; then
+  error "This script must be run as root"
+  error "Run: sudo helpers/system/disk-rescue-release.sh"
+  exit 1
+fi
+
 if [[ ! -f "$RESCUE_FILE" ]]; then
   info "No rescue file found at $RESCUE_FILE"
   info "Nothing to release"
