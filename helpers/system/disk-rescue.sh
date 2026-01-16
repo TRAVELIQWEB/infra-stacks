@@ -78,4 +78,6 @@ sudo chmod 400 "$RESCUE_FILE"
 
 success "Disk rescue file created"
 success "Path: $RESCUE_FILE"
-success "Size: ${R
+success "Size: ${RESERVE_GB} GB"
+
+exit 0
