@@ -1,77 +1,58 @@
 #!/usr/bin/env bash
 set -e
 
-echo "📧 DIRECT SMTP MAIL TEST (NO HELPERS)"
+echo "📧 POSTFIX SMTP MAIL TEST"
 
 #############################################
-# REQUIRE ROOT (SMTP password inside)
+# REQUIRE ROOT (postfix runs as system daemon)
 #############################################
 if [[ "$EUID" -ne 0 ]]; then
-  echo "❌ Run as root: sudo bash mail-test-direct.sh"
+  echo "❌ Run as root: sudo bash mail-test-postfix.sh"
   exit 1
 fi
 
 #############################################
-# Install msmtp if missing
+# Ensure required packages
 #############################################
-if ! command -v msmtp &>/dev/null; then
-  echo "Installing msmtp..."
+if ! command -v mail &>/dev/null; then
+  echo "Installing mailutils..."
   apt update -y
-  apt install -y msmtp ca-certificates
+  apt install -y mailutils
 fi
 
 #############################################
-# === FILL THESE VALUES ===
+# CONFIG (ONLY RECEIVER)
 #############################################
-
-SMTP_HOST="mail.977-24-24-365.com"
-SMTP_PORT="465"
-SMTP_USER="serveralerts@mail.977-24-24-365.com"
-SMTP_PASS="Salman@786"
-MAIL_FROM="serveralerts@mail.977-24-24-365.com"
 MAIL_TO="salman.n@webshlok.com"
 
 #############################################
-# TEMP CONFIG
+# SEND TEST MAIL
 #############################################
-TMP_CFG="/tmp/msmtp-test.conf"
+HOST="$(hostname -f)"
+TIME="$(date)"
 
-cat > "$TMP_CFG" <<EOF
-defaults
-auth on
-tls on
-tls_starttls off
-tls_trust_file /etc/ssl/certs/ca-certificates.crt
-logfile /tmp/msmtp-test.log
+echo "Sending test mail via Postfix..."
 
-account test
-host $SMTP_HOST
-port $SMTP_PORT
-user $SMTP_USER
-password $SMTP_PASS
-from $MAIL_FROM
+echo "Postfix SMTP test
 
-account default : test
-EOF
+Host : $HOST
+Time : $TIME
 
-chmod 600 "$TMP_CFG"
+If you received this mail, POSTFIX SMTP IS WORKING." \
+| mail -s " POSTFIX SMTP TEST [$HOST]" "$MAIL_TO"
 
 #############################################
-# SEND MAIL
+# CHECK QUEUE / LOG
 #############################################
-echo "Sending test mail..."
+sleep 2
 
-{
-  echo "Subject: ✅ SMTP TEST SUCCESS ($(hostname))"
-  echo ""
-  echo "Host: $(hostname)"
-  echo "Time: $(date)"
-  echo ""
-  echo "If you received this, SMTP is WORKING."
-} | msmtp --file="$TMP_CFG" "$MAIL_TO"
+echo ""
+echo "📦 Mail queue:"
+mailq || true
 
-#############################################
-# RESULT
-#############################################
-echo "✅ MAIL SENT SUCCESSFULLY"
-echo "Log: /tmp/msmtp-test.log"
+echo ""
+echo "📜 Last mail log:"
+tail -n 20 /var/log/mail.log || true
+
+echo ""
+echo "✅ If mail arrived → Postfix is 100% OK"
