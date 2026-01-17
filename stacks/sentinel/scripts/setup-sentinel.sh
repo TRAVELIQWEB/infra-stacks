@@ -42,7 +42,7 @@ fi
 info "⬤ Setting up Redis Sentinel (1 per VPS)"
 
 # ---------------------------------------------
-# Sentinel port (KEEP, but safe)
+# Sentinel port
 # ---------------------------------------------
 SENTINEL_PORT="${SENTINEL_PORT:-}"
 if [[ -z "${SENTINEL_PORT}" ]]; then
@@ -56,7 +56,7 @@ if [[ ! "${SENTINEL_PORT}" =~ ^[0-9]+$ ]]; then
 fi
 
 # ---------------------------------------------
-# Sentinel password (KEEP, but safe)
+# Sentinel password
 # ---------------------------------------------
 SENTINEL_PASSWORD="${SENTINEL_PASSWORD:-}"
 if [[ -z "${SENTINEL_PASSWORD}" ]]; then
@@ -68,7 +68,7 @@ if [[ -z "${SENTINEL_PASSWORD}" ]]; then
 fi
 
 # ---------------------------------------------
-# Detect NetBird private IP (KEEP)
+# Detect NetBird private IP (10.50.x.x)
 # ---------------------------------------------
 LOCAL_IP="$(hostname -I | tr ' ' '\n' | grep '^10\.50\.' | head -n1 || true)"
 if [[ -z "$LOCAL_IP" ]]; then
@@ -78,24 +78,83 @@ fi
 export LOCAL_IP
 
 # ---------------------------------------------
-# Static master map (THIS IS THE FIX)
+# Static master map (masters.env)
 # ---------------------------------------------
 MASTER_MAP="/opt/redis-sentinel/masters.env"
+
 if [[ ! -f "$MASTER_MAP" ]]; then
-  error "❌ Missing $MASTER_MAP (static master mapping required). Create it on ALL VPS."
-  exit 1
+  if [[ "${ALLOW_MASTER_MAP_GENERATION:-no}" != "yes" ]]; then
+    error "❌ masters.env missing at: $MASTER_MAP"
+    error "👉 Generate it ONLY ON PRIMARY Redis VPS:"
+    error "   export ALLOW_MASTER_MAP_GENERATION=yes"
+    error "   bash setup-sentinel.sh"
+    exit 1
+  fi
+
+  info "⚙️  masters.env not found — generating from local redis-stack-* (PRIMARY VPS only)"
+
+  CONFIRM_MASTER_GEN="$(ask "⚠️ Are you on the PRIMARY MASTER Redis VPS? Type YES to continue:")"
+  if [[ "$CONFIRM_MASTER_GEN" != "YES" ]]; then
+    error "Cancelled. Do not generate masters.env on non-master VPS."
+    exit 1
+  fi
+
+  safe_mkdir "/opt/redis-sentinel"
+  : > "$MASTER_MAP"
+
+  # Detect redis-stack directories and sort ports properly
+  REDIS_DIRS="$(ls -d /opt/redis-stack-* 2>/dev/null | sort -V || true)"
+  if [[ -z "$REDIS_DIRS" ]]; then
+    error "❌ No redis-stack-* directories found. Redis must be set up first."
+    exit 1
+  fi
+
+  for DIR in $REDIS_DIRS; do
+    PORT="$(basename "$DIR" | sed 's/redis-stack-//')"
+    if [[ ! "$PORT" =~ ^[0-9]+$ ]]; then
+      continue
+    fi
+
+    ENV_FILE="$DIR/.env"
+    if [[ ! -f "$ENV_FILE" ]]; then
+      error "❌ Missing Redis env file: $ENV_FILE"
+      exit 1
+    fi
+
+    PASS="$(grep '^REDIS_PASSWORD=' "$ENV_FILE" | head -n1 | cut -d'=' -f2- || true)"
+    if [[ -z "$PASS" ]]; then
+      error "❌ REDIS_PASSWORD missing in $ENV_FILE"
+      exit 1
+    fi
+
+    # IMPORTANT: no leading spaces, and keep newline between entries
+    cat >> "$MASTER_MAP" <<EOF
+REDIS_${PORT}_MASTER_IP=${LOCAL_IP}
+REDIS_${PORT}_MASTER_PASSWORD=${PASS}
+
+EOF
+
+    info "✔ Registered master redis-${PORT} at ${LOCAL_IP}:${PORT}"
+  done
+
+  chmod 600 "$MASTER_MAP"
+  success "✅ masters.env generated at $MASTER_MAP"
+else
+  info "✔ Using existing masters.env: $MASTER_MAP"
 fi
+
+# Fix CRLF if copied from Windows
+sudo sed -i 's/\r$//' "$MASTER_MAP" 2>/dev/null || true
 
 # shellcheck source=/dev/null
 source "$MASTER_MAP"
 
 # ---------------------------------------------
 # Ports list (default 6380-6385)
-# You can override: export REDIS_PORTS="6380 6381 ..."
+# Override: export REDIS_PORTS="6380 6381 ..."
 # ---------------------------------------------
 REDIS_PORTS="${REDIS_PORTS:-6380 6381 6382 6383 6384 6385}"
 
-# Validate ports list
 for p in $REDIS_PORTS; do
   if [[ ! "$p" =~ ^[0-9]+$ ]]; then
     error "❌ Invalid port in REDIS_PORTS: '$p' (must be numeric)"
@@ -113,39 +172,32 @@ TMP_CONF="${DATA_DIR}/sentinel.conf.tmp"
 safe_mkdir "$DATA_DIR"
 
 # ---------------------------------------------
-# Write BASE config to temp first (atomic write)
+# Write base config
 # ---------------------------------------------
 env SENTINEL_PORT="$SENTINEL_PORT" \
-    SENTINEL_PASSWORD="$SENTINEL_PASSWORD" \
-    LOCAL_IP="$LOCAL_IP" \
-    envsubst < "$TEMPLATE_DIR/sentinel.conf.tpl" > "$TMP_CONF"
+  SENTINEL_PASSWORD="$SENTINEL_PASSWORD" \
+  LOCAL_IP="$LOCAL_IP" \
+  envsubst < "$TEMPLATE_DIR/sentinel.conf.tpl" > "$TMP_CONF"
 
 info ""
-info "🛰  Registering Redis clusters using STATIC master mapping"
+info "🛰  Registering Redis clusters using masters.env"
 info ""
 
 # ---------------------------------------------
-# Append clusters (static mapping; identical on all VPS)
+# Append clusters
 # ---------------------------------------------
 for PORT in $REDIS_PORTS; do
   MASTER_VAR="REDIS_${PORT}_MASTER_IP"
   MASTER_IP="${!MASTER_VAR:-}"
-
   if [[ -z "$MASTER_IP" ]]; then
     error "❌ masters.env missing: ${MASTER_VAR}=<ip>"
     exit 1
   fi
 
-  # Read Redis password from the instance env file (keeps your existing approach)
-  ENV_FILE="/opt/redis-stack-${PORT}/.env"
-  if [[ ! -f "$ENV_FILE" ]]; then
-    error "❌ Missing Redis env file: $ENV_FILE (expected existing redis-stack-${PORT})"
-    exit 1
-  fi
-
-  PASS="$(grep '^REDIS_PASSWORD=' "$ENV_FILE" | head -n1 | cut -d'=' -f2- || true)"
+  PASS_VAR="REDIS_${PORT}_MASTER_PASSWORD"
+  PASS="${!PASS_VAR:-}"
   if [[ -z "$PASS" ]]; then
-    error "❌ REDIS_PASSWORD missing in: $ENV_FILE"
+    error "❌ masters.env missing: ${PASS_VAR}=<password>"
     exit 1
   fi
 
@@ -159,28 +211,25 @@ sentinel auth-pass redis-${PORT} ${PASS}
 sentinel down-after-milliseconds redis-${PORT} 15000
 sentinel failover-timeout redis-${PORT} 90000
 sentinel parallel-syncs redis-${PORT} 1
-
 EOF
 done
 
-# Move temp to final (atomic replace)
+# Atomic replace
 mv -f "$TMP_CONF" "$CONF_FILE"
 chmod 600 "$CONF_FILE" || true
 
 info "✔ Sentinel config generated at: $CONF_FILE"
 
 # ---------------------------------------------
-# Start/Restart Sentinel container (idempotent)
+# Start/Restart Sentinel container
 # ---------------------------------------------
 TMP_ENV="/tmp/sentinel-${SENTINEL_PORT}.env"
 echo "SENTINEL_PORT=$SENTINEL_PORT" > "$TMP_ENV"
 
-# Use a consistent project name
 PROJECT_NAME="sentinel-${SENTINEL_PORT}"
 
 info "▶ Starting Redis Sentinel container (project: $PROJECT_NAME)..."
 
-# If already running, recreate to apply new config cleanly
 docker compose \
   -f "$TEMPLATE_DIR/sentinel-docker-compose.yml" \
   --env-file "$TMP_ENV" \
@@ -188,4 +237,4 @@ docker compose \
   up -d --force-recreate
 
 success "🚀 Redis Sentinel started on port $SENTINEL_PORT"
-success "✔ Monitoring Redis clusters (static master map; stable quorum)"
+success "✔ Monitoring Redis clusters (masters.env; stable quorum)"
